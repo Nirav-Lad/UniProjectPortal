@@ -78,7 +78,7 @@ WSGI_APPLICATION = 'uni_project_portal.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DDATABASES = {
+DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': config('DB_NAME'),
