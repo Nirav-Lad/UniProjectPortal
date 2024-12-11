@@ -1,0 +1,34 @@
+# Python compiled files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+myenv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# Django files
+db.sqlite3
+media/
+
+# Logs
+*.log
+
+# IDE-specific files
+.vscode/
+*.swp
+*.swo
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Byte-compiled files
+*.pyc
+
+# Other system-specific files
+.DS_Store
+Thumbs.db
+
