@@ -1,3 +1,9 @@
-from django.shortcuts import render
+from .serializers import CreateBatchSerializer
+from .models import Batch
+from rest_framework.generics import ListCreateAPIView
 
-# Create your views here.
+
+class BatchCreateList(ListCreateAPIView):
+    queryset=Batch.objects.all()
+    serializer_class=CreateBatchSerializer
+    
