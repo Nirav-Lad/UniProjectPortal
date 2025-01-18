@@ -1,0 +1,26 @@
+GET http://127.0.0.1:8000/protectedview/ HTTP/1.1
+content-type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM3MTk3NDQzLCJpYXQiOjE3MzcxOTU2NDMsImp0aSI6IjA3ZjJiNGFmZmI0YzQ1NGRiNTE4YTIzZDIwY2NlZDRkIiwidXNlcl9pZCI6NX0.t_KZUY6WVlHbz4r4UcUhgiXxr83zhpzW-VijS4Lht5o
+
+
+###
+POST http://127.0.0.1:8000/token/refersh/ HTTP/1.1
+content-type: application/json
+
+{
+    "refresh":"yJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTczNzI4MTgxOCwiaWF0IjoxNzM3MTk1NDE4LCJqdGkiOiJjOGVmMzc2NDM4ZWI0NTljOTA5MzI5ZTFiMGE4OTZiOSIsInVzZXJfaWQiOjV9.vJhhcKOplhGGt3DDakQDAuHA6vLlKFisSL2gqGQwCP8"
+}
+
+
+###
+POST http://127.0.0.1:8000/login/ HTTP/1/1
+content-type: application/json
+
+{
+    "email":"testadmin@example.com",
+    "password":"test"
+}
+
+
+
+

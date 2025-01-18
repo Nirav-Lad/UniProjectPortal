@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 class Batch(models.Model):
     batch_id = models.CharField(primary_key=True, max_length=12)
@@ -161,8 +161,25 @@ class StudentDetails(models.Model):
         return f"{self.name} ({self.enrollment_id})"
 
 
-class UserMaster(models.Model):
-    id = models.AutoField(primary_key=True)  # Added explicit primary key
+# This is for test purpose only
+class UserManager(BaseUserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError("Email is required")
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        return self.create_user(email, password, **extra_fields)
+
+
+class UserMaster(AbstractBaseUser, PermissionsMixin):
+    id = models.AutoField(primary_key=True)
     USER_TYPE_CHOICES = [
         ('Admin', 'Admin'),
         ('Student', 'Student'),
@@ -173,7 +190,7 @@ class UserMaster(models.Model):
         choices=USER_TYPE_CHOICES,
         default='Student',
     )
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True)  # Must be unique for authentication
     otp = models.CharField(max_length=6, blank=True, null=True)
     password = models.CharField(max_length=255)
     status = models.CharField(max_length=8, blank=True, null=True)
@@ -185,6 +202,13 @@ class UserMaster(models.Model):
         blank=True,
         related_name='users_created',
     )
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = []
 
     class Meta:
         db_table = 'user_master'
