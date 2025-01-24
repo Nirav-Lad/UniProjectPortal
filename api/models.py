@@ -144,7 +144,7 @@ class StudentDetails(models.Model):
     enrollment_id = models.IntegerField(primary_key=True)  # Manual input, not auto-increment
     name = models.CharField(max_length=255)
     section = models.CharField(max_length=80, blank=True, null=True)
-    mobile_no = models.CharField(max_length=10, unique=True)
+    mobile_no = models.CharField(max_length=10, unique=True,null=True)
     batch = models.ForeignKey(
         Batch,
         on_delete=models.SET_NULL,
