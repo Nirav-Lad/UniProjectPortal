@@ -18,8 +18,43 @@ content-type: application/json
 
 {
     "email":"testadmin@example.com",
-    "password":"test"
+    "password_or_otp":"test"
 }
+
+###
+GET http://127.0.0.1:8000/create-batch/ HTTP/1/1
+Authorization: Bearer
+
+### first login with otp like normal login
+POST http://127.0.0.1:8000/login/ HTTP/1/1
+content-type: application/json
+
+{
+    "email":"niravkumar.r.lad@nuv.ac.in",
+    "password_or_otp":""
+}
+
+### setting password for after first login
+POST http://127.0.0.1:8000/set-password/ HTTP/1/1
+content-type: application/json
+Authorization: Bearer 
+
+{
+    "password":"niravlad"
+}
+
+### creating single student registration
+POST http://127.0.0.1:8000/students/register/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MDM1ODIwLCJpYXQiOjE3MzkwMzQwMjAsImp0aSI6IjNkYzllOGNhMjEzYjRhMjFhYmNlNGM5MWVkNjE1Y2UxIiwidXNlcl9pZCI6NX0.BNk8vwEBJTKTHf8uSIbAsNBBXTFt2Bpja87ui2TF8w0
+
+{
+    "name":"Nirav Lad",
+    "email":"niravkumar.r.lad@nuv.ac.in",
+    "enrollment_id":"22000743",
+    "batch_name":"Minor Project 2025"
+}
+
 
 
 

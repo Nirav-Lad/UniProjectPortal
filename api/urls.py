@@ -1,11 +1,12 @@
 from django.urls import path
-from .views import LoginAPIView,BatchcreateView,StudentUploadView,RegisterStudent
+from . import views
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
-    path('login/', LoginAPIView.as_view(), name='login'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('create-batch/',BatchcreateView.as_view(),name='create-batch'), 
-    path('upload-students/', StudentUploadView.as_view(), name='upload_students'),
-    path('register_student/',RegisterStudent.as_view(),name='registerstudent'),
+    path('login/', views.LoginAPIView.as_view(), name='login'),
+    path('set-password/', views.SetPasswordAPIView.as_view(), name='set-password'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('batches/', views.BatchCreateView.as_view(), name='batch-create'), 
+    path('students/upload/', views.StudentUploadView.as_view(), name='student-upload'),
+    path('students/register/', views.RegisterSingleStudentAPIView.as_view(), name='student-register'),
 ]

@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 class Batch(models.Model):
-    batch_id = models.CharField(primary_key=True, max_length=12)
+    batch_id = models.AutoField(primary_key=True)
     batch_name = models.CharField(max_length=255, unique=True)
     created_by = models.ForeignKey(
         'UserMaster',
