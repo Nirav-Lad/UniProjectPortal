@@ -1,8 +1,8 @@
 from rest_framework.views import APIView
-from rest_framework.generics import ListCreateAPIView
+from rest_framework.generics import ListCreateAPIView,UpdateAPIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import UserLoginSerializer,BatchSerializer,SetPasswordSerializer
+from .serializers import UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer
 from rest_framework.permissions import IsAuthenticated,AllowAny
 # New imports
 import pandas as pd, random
@@ -64,23 +64,28 @@ class BatchCreateView(ListCreateAPIView):
 # -----------------------------------------------------------------------------------------
 # Student upload api via excel sheet and pandas to break it
 class StudentUploadView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]  # ✅ Ensure only logged-in users (Admins) can access
 
     def post(self, request):
         file = request.FILES.get('file')
         if not file:
             return Response({'error': 'No file uploaded.'}, status=400)
-        
+
         try:
-            data = pd.read_excel(file, engine='openpyxl')  # Specify engine for compatibility
+            data = pd.read_excel(file, engine='openpyxl')  # ✅ Load Excel file
         except Exception as e:
             return Response({'error': 'Invalid file format.'}, status=400)
 
-        batch_id = request.data.get('batch_id')
+        batch_name = request.data.get('batch_name')  # ✅ Get batch name instead of batch_id
+        if not batch_name:
+            return Response({'error': 'Batch name is required.'}, status=400)
+
         try:
-            batch = Batch.objects.get(batch_id=batch_id)
+            batch = Batch.objects.get(batch_name=batch_name)  # ✅ Fetch batch using batch_name
         except Batch.DoesNotExist:
-            return Response({'error': 'Invalid batch ID.'}, status=400)
+            return Response({'error': f'Batch with name "{batch_name}" not found.'}, status=400)
+
+        created_by_user = request.user if request.user.is_authenticated else None  # ✅ Get admin who is uploading
 
         errors = []
         for row in data.to_dict('records'):
@@ -102,28 +107,35 @@ class StudentUploadView(APIView):
                 errors.append(f"Enrollment ID {enrollment_id} already exists.")
                 continue
 
-            otp = ''.join(random.choices('0123456789', k=6))
+            if UserMaster.objects.filter(email=email).exists():
+                errors.append(f"Email {email} is already registered.")
+                continue
+
+            otp = ''.join(random.choices('0123456789', k=6))  # ✅ Generate OTP
 
             try:
                 with transaction.atomic():
-                    # Create the student details first
-                    student_details = StudentDetails.objects.create(
-                        enrollment_id=enrollment_id,
-                        name=name,
-                        batch=batch
-                    )
-
-                    # Create the user
+                    # ✅ Create UserMaster with `created_by`
                     user = UserMaster.objects.create(
                         email=email,
                         otp=otp,
                         usertype='Student',
-                        status='Active'
+                        status='Active',
+                        enrollment_id=enrollment_id,  # ✅ Link enrollment ID to UserMaster
+                        created_by=created_by_user  # ✅ Assign created_by
                     )
 
-                    # Create the student batch
+                    # ✅ Create StudentDetails and link to UserMaster
+                    student_details = StudentDetails.objects.create(
+                        enrollment_id=enrollment_id,
+                        name=name,
+                        batch=batch,
+                        user=user  # ✅ Ensure StudentDetails is linked to UserMaster
+                    )
+
+                    # ✅ Create StudentBatch entry
                     StudentBatch.objects.create(
-                        enrollment=student_details,  # Link to the StudentDetails record
+                        enrollment=student_details,
                         current_batch=batch,
                         status='Active'
                     )
@@ -131,12 +143,12 @@ class StudentUploadView(APIView):
                 errors.append(f"Failed to create user {email}: {str(e)}")
                 continue
 
-            # Send email
+            # ✅ Send email with OTP
             try:
                 send_mail(
                     'Registration Successful',
                     f'Your OTP is: {otp}',
-                    'niravlad1090@gmail.com',
+                    'admin@example.com',
                     [email],
                     fail_silently=False,
                 )
@@ -153,7 +165,7 @@ class StudentUploadView(APIView):
 # ----------SIngle student upload
 
 class RegisterSingleStudentAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]  # ✅ Ensure only logged-in users (Admins) can access
 
     def post(self, request):
         email = request.data.get('email')
@@ -184,22 +196,27 @@ class RegisterSingleStudentAPIView(APIView):
 
         try:
             with transaction.atomic():
-                # Create StudentDetails entry
-                student_details = StudentDetails.objects.create(
-                    enrollment_id=enrollment_id,
-                    name=name,
-                    batch=batch
-                )
+                created_by_user = request.user if request.user.is_authenticated else None
 
-                # Create UserMaster entry
+                # ✅ Create UserMaster with `created_by`
                 user = UserMaster.objects.create(
                     email=email,
                     otp=otp,
                     usertype='Student',
-                    status='Active'
+                    status='Active',
+                    enrollment_id=enrollment_id,  # ✅ Link enrollment ID to UserMaster
+                    created_by=created_by_user  # ✅ Assign created_by
                 )
 
-                # Create StudentBatch entry
+                # ✅ Create StudentDetails and link to UserMaster
+                student_details = StudentDetails.objects.create(
+                    enrollment_id=enrollment_id,
+                    name=name,
+                    batch=batch,
+                    user=user  # ✅ Ensure StudentDetails is linked to UserMaster
+                )
+
+                # ✅ Create StudentBatch entry
                 StudentBatch.objects.create(
                     enrollment=student_details,
                     current_batch=batch,
@@ -213,7 +230,7 @@ class RegisterSingleStudentAPIView(APIView):
             send_mail(
                 'Registration Successful',
                 f'Your OTP is: {otp}',
-                'niravlad1090@gmail.com',
+                'admin@example.com',
                 [email],
                 fail_silently=False,
             )
@@ -221,3 +238,23 @@ class RegisterSingleStudentAPIView(APIView):
             return Response({'warning': f'Student registered but failed to send OTP email: {str(e)}'}, status=status.HTTP_207_MULTI_STATUS)
 
         return Response({'message': 'Student registered successfully.', 'otp': otp}, status=status.HTTP_201_CREATED)
+
+    
+# ------------------------------------------------------------------------------------
+class UpdateStudentDetailsView(UpdateAPIView):
+    serializer_class = StudentDetailsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user.student_details  #  Correctly fetch StudentDetails object
+
+    def update(self, request, *args, **kwargs):
+        student = self.get_object()
+
+        if not student:
+            return Response({"error": "Student record not found."}, status=404)
+
+        if student.section and student.mobile_no:
+            return Response({"message": "Details already updated."}, status=400)
+
+        return super().update(request, *args, **kwargs)

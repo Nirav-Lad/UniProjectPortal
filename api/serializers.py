@@ -2,7 +2,7 @@ import datetime
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import Batch, UserMaster
+from .models import Batch, UserMaster,StudentDetails
 from django.contrib.auth.hashers import make_password
 
 
@@ -79,3 +79,10 @@ class BatchSerializer(serializers.ModelSerializer):
         if request and hasattr(request, 'user'):
             validated_data['created_by'] = request.user
         return super().create(validated_data)
+# -------------------------------------------------------------
+class StudentDetailsSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(read_only=True)  # Show linked user ID
+
+    class Meta:
+        model = StudentDetails
+        fields = ['section', 'mobile_no', 'user']  #  Added 'user' field for verification

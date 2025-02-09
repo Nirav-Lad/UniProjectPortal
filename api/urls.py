@@ -9,4 +9,5 @@ urlpatterns = [
     path('batches/', views.BatchCreateView.as_view(), name='batch-create'), 
     path('students/upload/', views.StudentUploadView.as_view(), name='student-upload'),
     path('students/register/', views.RegisterSingleStudentAPIView.as_view(), name='student-register'),
+    path('update-student-details/', views.UpdateStudentDetailsView.as_view(), name='update_student_details'),
 ]

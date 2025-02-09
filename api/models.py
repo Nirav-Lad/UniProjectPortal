@@ -23,7 +23,7 @@ class Batch(models.Model):
 
 
 class GroupFormation(models.Model):
-    id = models.AutoField(primary_key=True)  # Explicit primary key
+    id = models.AutoField(primary_key=True) 
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Approved', 'Approved'),
@@ -113,7 +113,7 @@ class Idea(models.Model):
 
 
 class StudentBatch(models.Model):
-    id = models.AutoField(primary_key=True)  # Added explicit primary key
+    id = models.AutoField(primary_key=True) 
     enrollment = models.ForeignKey(
         'StudentDetails',
         on_delete=models.CASCADE,
@@ -141,10 +141,17 @@ class StudentBatch(models.Model):
 
 
 class StudentDetails(models.Model):
-    enrollment_id = models.IntegerField(primary_key=True)  # Manual input, not auto-increment
+    enrollment_id = models.IntegerField(primary_key=True)  
+    user = models.OneToOneField(  # ✅ New ForeignKey to UserMaster
+        'UserMaster', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='student_details'
+    )
     name = models.CharField(max_length=255)
     section = models.CharField(max_length=80, blank=True, null=True)
-    mobile_no = models.CharField(max_length=10, unique=True,null=True)
+    mobile_no = models.CharField(max_length=10, unique=True, null=True)
     batch = models.ForeignKey(
         Batch,
         on_delete=models.SET_NULL,
@@ -180,6 +187,7 @@ class UserManager(BaseUserManager):
 
 class UserMaster(AbstractBaseUser, PermissionsMixin):
     id = models.AutoField(primary_key=True)
+    enrollment_id = models.IntegerField(unique=True, null=True, blank=True)  # ✅ New field for Student Enrollment ID
     USER_TYPE_CHOICES = [
         ('Admin', 'Admin'),
         ('Student', 'Student'),
@@ -190,7 +198,7 @@ class UserMaster(AbstractBaseUser, PermissionsMixin):
         choices=USER_TYPE_CHOICES,
         default='Student',
     )
-    email = models.EmailField(unique=True)  # Must be unique for authentication
+    email = models.EmailField(unique=True)  
     otp = models.CharField(max_length=6, blank=True, null=True)
     password = models.CharField(max_length=255)
     status = models.CharField(max_length=8, blank=True, null=True)
