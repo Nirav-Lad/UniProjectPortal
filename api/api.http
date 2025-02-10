@@ -8,7 +8,7 @@ POST http://127.0.0.1:8000/token/refersh/ HTTP/1.1
 content-type: application/json
 
 {
-    "refresh":"yJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTczNzI4MTgxOCwiaWF0IjoxNzM3MTk1NDE4LCJqdGkiOiJjOGVmMzc2NDM4ZWI0NTljOTA5MzI5ZTFiMGE4OTZiOSIsInVzZXJfaWQiOjV9.vJhhcKOplhGGt3DDakQDAuHA6vLlKFisSL2gqGQwCP8"
+    "refresh":""
 }
 
 
@@ -17,13 +17,22 @@ POST http://127.0.0.1:8000/login/ HTTP/1/1
 content-type: application/json
 
 {
-    "email":"testadmin@example.com",
-    "password_or_otp":"test"
+    "email":"nirav20267@gmail.com",
+    "password_or_otp":"admin"
 }
 
 ###
-GET http://127.0.0.1:8000/create-batch/ HTTP/1/1
-Authorization: Bearer
+GET http://127.0.0.1:8000/batches/ HTTP/1/1
+Authorization: Bearer 
+
+### creating batch api for user according to the access token
+POST http://127.0.0.1:8000/batches/ HTTP/1/1
+Authorization: Bearer 
+Content-Type: application/json
+
+{
+    "batch_name":"Major Project 2027"
+}
 
 ### first login with otp like normal login
 POST http://127.0.0.1:8000/login/ HTTP/1/1
@@ -46,7 +55,7 @@ Authorization: Bearer
 ### creating single student registration
 POST http://127.0.0.1:8000/students/register/ HTTP/1/1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MTA3MzY4LCJpYXQiOjE3MzkxMDU1NjgsImp0aSI6IjQ4ZGYzODA3ZjhlZDQzYmRiZDhhOGRhYjE3MTgyNTkyIiwidXNlcl9pZCI6NX0.IRq9fGPg5IYjWZxd0LKCSWvZQ3rElqlOs2VzaHW0yd4
+Authorization: Bearer 
 
 {
     "name":"Zels Sorathiya",
@@ -58,7 +67,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY
 ### adding the remaining details after setting the login password on first login
 ### Update Student Details (Section & Mobile Number)
 PUT http://127.0.0.1:8000/update-student-details/
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MTA3NDQyLCJpYXQiOjE3MzkxMDU2NDIsImp0aSI6IjBkOGNjNWE2MGQzZjQ1ZmVhMmUxMDI4ZjU4OWY2NDZiIiwidXNlcl9pZCI6Mzl9.V3_p1ULOt4kvkGVnqKyyhmczelS53WVJWxzsLvzWLl0
+Authorization: Bearer 
 Content-Type: application/json
 
 {
@@ -78,11 +87,26 @@ content-type: application/json
 ### setting password for after first login for zels
 POST http://127.0.0.1:8000/set-password/ HTTP/1/1
 content-type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MTA3NDAyLCJpYXQiOjE3MzkxMDU2MDIsImp0aSI6IjBmYzAzMTRhNGU3ODQ1MzliOTFmOWJmNzY0NDZjMzdhIiwidXNlcl9pZCI6Mzl9.if9Dqieo3ZjXyWWQ9-Xkumyd9ss6xbJzgTW3xyBTitQ
+Authorization: Bearer 
 
 {
     "password":"zelsSorathiya"
 }
+
+### New request to see the students in particualr batches 
+GET http://127.0.0.1:8000/batches/Major Project 2028/students/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer 
+
+### TO get student profile details just via login
+GET http://127.0.0.1:8000/students/profile/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MjEwNzIxLCJpYXQiOjE3MzkyMDg5MjEsImp0aSI6ImNmMjlmOWQ1MGRhNzQ3NDhiZjIzOWIzMjdkMzVlNDY3IiwidXNlcl9pZCI6Mzl9.HrsBr1UkaMZCm0lsJPQUWXonwZzGNkws-fa6H8cDL9w
+
+### To get students details for admin or other user via enrollment id
+GET http://127.0.0.1:8000/students/24000859 HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MjEwNzAzLCJpYXQiOjE3MzkyMDg5MDMsImp0aSI6IjJiZmQ0Y2IxM2VlYTRmMThhMGFmY2E5YjliYzhkNmIwIiwidXNlcl9pZCI6NH0.6nNY7omt_NUkfg58nv7W4QK-_ucqaaU5wc8HwvzF53c
 
 
 

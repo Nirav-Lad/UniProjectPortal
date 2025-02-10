@@ -10,4 +10,7 @@ urlpatterns = [
     path('students/upload/', views.StudentUploadView.as_view(), name='student-upload'),
     path('students/register/', views.RegisterSingleStudentAPIView.as_view(), name='student-register'),
     path('update-student-details/', views.UpdateStudentDetailsView.as_view(), name='update_student_details'),
+    path('batches/<str:batch_name>/students/', views.GetStudentsInBatchAPIView.as_view(), name='students-in-batch'),
+    path('students/profile/', views.GetStudentProfileAPIView.as_view(), name='student-profile'),
+    path('students/<int:enrollment_id>/', views.GetSingleStudentAPIView.as_view(), name='student-detail'),
 ]

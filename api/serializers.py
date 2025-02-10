@@ -72,17 +72,47 @@ class BatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Batch
         fields = ['batch_id', 'batch_name', 'created_by', 'created_on']
-        read_only_fields = ['batch_id', 'created_by', 'created_on']  # Auto-generated fields
+        read_only_fields = ['batch_id', 'created_by', 'created_on']
 
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            validated_data['created_by'] = request.user
-        return super().create(validated_data)
+    def to_representation(self, instance):
+        request = self.context.get("request")
+        if request and request.method == "GET":
+            return {
+                "batch_name": instance.batch_name
+            }
+        return super().to_representation(instance)
+
 # -------------------------------------------------------------
 class StudentDetailsSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)  # Show linked user ID
+    user = serializers.PrimaryKeyRelatedField(read_only=True)  
+    class Meta:
+        model = StudentDetails
+        fields = ['section', 'mobile_no', 'user']  
+# --------------------------------------------------------------
+class StudentInBatchSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)  
+    class Meta:
+        model = StudentDetails
+        fields = ["enrollment_id", "name", "user_email"]
+# --------------------------------------------------------------
+class StudentDetailsRoleBasedSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source="user.email", read_only=True)
+    batch_name = serializers.CharField(source="batch.batch_name", read_only=True)
 
     class Meta:
         model = StudentDetails
-        fields = ['section', 'mobile_no', 'user']  #  Added 'user' field for verification
+        fields = ["enrollment_id", "name", "email", "section", "mobile_no", "batch_name"]
+
+    def to_representation(self, instance):
+    
+        data = super().to_representation(instance)
+        user = self.context["request"].user
+
+        if user.usertype == "Admin":
+            # Admins should not see `section` and `mobile_no`
+            data.pop("section", None)
+            data.pop("mobile_no", None)
+
+        return data
+
+# --------------------------------------------------------------

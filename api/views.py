@@ -1,9 +1,11 @@
 from rest_framework.views import APIView
-from rest_framework.generics import ListCreateAPIView,UpdateAPIView
+from rest_framework.generics import ListCreateAPIView,UpdateAPIView,ListAPIView,RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer
-from rest_framework.permissions import IsAuthenticated,AllowAny
+from .serializers import (
+    UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
+    StudentInBatchSerializer,StudentDetailsRoleBasedSerializer)
+from rest_framework.permissions import IsAuthenticated
 # New imports
 import pandas as pd, random
 from .models import UserMaster,Batch,StudentBatch,StudentDetails
@@ -47,8 +49,10 @@ class SetPasswordAPIView(APIView):
 # -----------------------------------------------------------------------------------------
 class BatchCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
-    queryset = Batch.objects.all()
     serializer_class = BatchSerializer
+
+    def get_queryset(self):
+        return Batch.objects.filter(created_by=self.request.user)
 
     def perform_create(self, serializer):
         if self.request.user.usertype != 'Admin':
@@ -58,9 +62,10 @@ class BatchCreateView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         return Response(
-            {"message": "Batch created successfully!", "batch": response.data},
+            {"message": "Batch created successfully"},
             status=status.HTTP_201_CREATED
         )
+
 # -----------------------------------------------------------------------------------------
 # Student upload api via excel sheet and pandas to break it
 class StudentUploadView(APIView):
@@ -258,3 +263,55 @@ class UpdateStudentDetailsView(UpdateAPIView):
             return Response({"message": "Details already updated."}, status=400)
 
         return super().update(request, *args, **kwargs)
+# ---------------------------------------------------------------------------------------
+class GetStudentsInBatchAPIView(ListAPIView):
+    serializer_class = StudentInBatchSerializer
+    permission_classes = [IsAuthenticated]  
+
+    def get_queryset(self):
+        batch_name = self.kwargs.get("batch_name") 
+        try:
+            batch = Batch.objects.get(batch_name=batch_name) 
+        except Batch.DoesNotExist:
+            return StudentDetails.objects.none()  
+
+        return StudentDetails.objects.filter(batch=batch) 
+# ---------------------------------------------------------------------------------------
+class GetSingleStudentAPIView(RetrieveAPIView):
+    serializer_class = StudentDetailsRoleBasedSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        """
+        Retrieve student details by enrollment_id.
+        """
+        user = self.request.user
+        if user.usertype != "Admin":
+            raise Exception("Only admins can access this.")
+
+        enrollment_id = self.kwargs.get("enrollment_id")
+
+        try:
+            return StudentDetails.objects.get(enrollment_id=enrollment_id)
+        except StudentDetails.DoesNotExist:
+            raise Exception("Student not found.")
+
+# ----------------------------------------------------------------------------------------
+class GetStudentProfileAPIView(RetrieveAPIView):
+#    View to see profile of their by students
+    serializer_class = StudentDetailsRoleBasedSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        """
+        Fetch details of the logged-in student.
+        """
+        user = self.request.user
+
+        if user.usertype != "Student":
+            raise Exception("Only students can access this profile.")
+
+        try:
+            return user.student_details  # Fetch linked StudentDetails record
+        except StudentDetails.DoesNotExist:
+            raise Exception("Student profile not found.")
