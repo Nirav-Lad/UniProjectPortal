@@ -2,7 +2,7 @@ import datetime
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import Batch, UserMaster,StudentDetails
+from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, StudentBatch
 from django.contrib.auth.hashers import make_password
 
 
@@ -116,3 +116,27 @@ class StudentDetailsRoleBasedSerializer(serializers.ModelSerializer):
         return data
 
 # --------------------------------------------------------------
+class GroupSerializer(serializers.ModelSerializer):
+    members = serializers.SerializerMethodField()
+    member_count = serializers.SerializerMethodField()
+    vacancies = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GroupFormation
+        fields = ["id", "status", "members", "member_count", "vacancies"]
+
+    def get_members(self, obj):
+        students = GroupStudents.objects.filter(group=obj).select_related("student_batch_link__enrollment")
+        return [
+            {
+                "enrollment_id": student.student_batch_link.enrollment.enrollment_id,
+                "name": student.student_batch_link.enrollment.name,
+            }
+            for student in students
+        ]
+
+    def get_member_count(self, obj):
+        return GroupStudents.objects.filter(group=obj).count()
+
+    def get_vacancies(self, obj):
+        return 4 - self.get_member_count(obj)

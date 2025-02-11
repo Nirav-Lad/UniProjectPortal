@@ -101,12 +101,29 @@ Authorization: Bearer
 ### TO get student profile details just via login
 GET http://127.0.0.1:8000/students/profile/ HTTP/1/1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MjEwNzIxLCJpYXQiOjE3MzkyMDg5MjEsImp0aSI6ImNmMjlmOWQ1MGRhNzQ3NDhiZjIzOWIzMjdkMzVlNDY3IiwidXNlcl9pZCI6Mzl9.HrsBr1UkaMZCm0lsJPQUWXonwZzGNkws-fa6H8cDL9w
+Authorization: Bearer 
 
 ### To get students details for admin or other user via enrollment id
 GET http://127.0.0.1:8000/students/24000859 HTTP/1/1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MjEwNzAzLCJpYXQiOjE3MzkyMDg5MDMsImp0aSI6IjJiZmQ0Y2IxM2VlYTRmMThhMGFmY2E5YjliYzhkNmIwIiwidXNlcl9pZCI6NH0.6nNY7omt_NUkfg58nv7W4QK-_ucqaaU5wc8HwvzF53c
+Authorization: Bearer 
+
+### To see available group for student users
+GET http://127.0.0.1:8000/groups/available/ HTTP/1/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5Mjk4MTMyLCJpYXQiOjE3MzkyOTYzMzIsImp0aSI6IjI3YjI5MWMyZDNmYjRlZmE5ZDFkNTMxMzIwNjU2YTc1IiwidXNlcl9pZCI6Mzh9.B5qsyjgCUbQReu-zrpAorLLyKo14-FsgQAFLegVNFa8
+
+### Request to join group
+POST http://127.0.0.1:8000/groups/join/ HTTP/1/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5Mjk4MTMyLCJpYXQiOjE3MzkyOTYzMzIsImp0aSI6IjI3YjI5MWMyZDNmYjRlZmE5ZDFkNTMxMzIwNjU2YTc1IiwidXNlcl9pZCI6Mzh9.B5qsyjgCUbQReu-zrpAorLLyKo14-FsgQAFLegVNFa8
+Content-Type: application/json
+
+{
+    "group_id":1
+}
+
+
+
+
 
 
 

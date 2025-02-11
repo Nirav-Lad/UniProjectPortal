@@ -4,15 +4,16 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import (
     UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
-    StudentInBatchSerializer,StudentDetailsRoleBasedSerializer)
+    StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer)
 from rest_framework.permissions import IsAuthenticated
 # New imports
 import pandas as pd, random
-from .models import UserMaster,Batch,StudentBatch,StudentDetails
+from .models import UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Count
 from rest_framework_simplejwt.tokens import RefreshToken
 
 # -----------------------------------------------------------------------------------------
@@ -315,3 +316,74 @@ class GetStudentProfileAPIView(RetrieveAPIView):
             return user.student_details  # Fetch linked StudentDetails record
         except StudentDetails.DoesNotExist:
             raise Exception("Student profile not found.")
+# ----------------------------------------------------------------------------------------
+class AvailableGroupsAPIView(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = GroupSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+
+        # ✅ Check if user is a student
+        if user.usertype != "Student":
+            self.permission_denied(self.request, message="Only students can view available groups.")
+
+        # ✅ Ensure the student is assigned to a batch
+        student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
+        if not student_batch:
+            self.permission_denied(self.request, message="You are not assigned to any batch.")
+
+        # ✅ Fetch groups with less than 4 members
+        groups = GroupFormation.objects.annotate(
+            member_count=Count("group_students")
+        ).filter(member_count__lt=4)
+
+        if not groups.exists():
+            return Response({"message": "No available groups found."}, status=status.HTTP_204_NO_CONTENT)
+
+        return groups
+# ----------------------------------------------------------------------------------------
+class JoinGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        # Ensure user is a student
+        if user.usertype != "Student":
+            return Response({"error": "Only students can join groups."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Fetch student's batch
+        student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
+        if not student_batch:
+            return Response({"error": "You are not assigned to any batch."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if student is already in a group
+        existing_group = GroupStudents.objects.filter(student_batch_link=student_batch).first()
+        if existing_group:
+            return Response({"error": "You are already in a group."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get group_id from request
+        group_id = request.data.get("group_id")
+
+        if not group_id:
+            # ✅ If no group is provided, create a new one automatically
+            with transaction.atomic():
+                new_group = GroupFormation.objects.create(status="Pending")
+                GroupStudents.objects.create(group=new_group, student_batch_link=student_batch)
+            return Response({"message": f"New group created. You are the first member (Group ID: {new_group.id})."}, status=status.HTTP_201_CREATED)
+
+        # ✅ If group_id is provided, check if the group exists
+        group = GroupFormation.objects.filter(id=group_id).first()
+        if not group:
+            return Response({"error": "Group not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ Check if group has space (max 4 members)
+        member_count = GroupStudents.objects.filter(group=group).count()
+        if member_count >= 4:
+            return Response({"error": "This group is already full."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ Add student to the group
+        GroupStudents.objects.create(group=group, student_batch_link=student_batch)
+
+        return Response({"message": f"Successfully joined group {group_id}."}, status=status.HTTP_200_OK)

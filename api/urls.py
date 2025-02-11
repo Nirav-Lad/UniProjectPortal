@@ -13,4 +13,6 @@ urlpatterns = [
     path('batches/<str:batch_name>/students/', views.GetStudentsInBatchAPIView.as_view(), name='students-in-batch'),
     path('students/profile/', views.GetStudentProfileAPIView.as_view(), name='student-profile'),
     path('students/<int:enrollment_id>/', views.GetSingleStudentAPIView.as_view(), name='student-detail'),
+    path('groups/available/', views.AvailableGroupsAPIView.as_view(), name='available-groups'),
+    path('groups/join/', views.JoinGroupAPIView.as_view(), name='join-group'),
 ]
