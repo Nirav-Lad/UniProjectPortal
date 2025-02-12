@@ -15,4 +15,6 @@ urlpatterns = [
     path('students/<int:enrollment_id>/', views.GetSingleStudentAPIView.as_view(), name='student-detail'),
     path('groups/available/', views.AvailableGroupsAPIView.as_view(), name='available-groups'),
     path('groups/join/', views.JoinGroupAPIView.as_view(), name='join-group'),
+    path('ideas/submit/', views.IdeaSubmissionAPIView.as_view(), name='submit-idea'),
+
 ]

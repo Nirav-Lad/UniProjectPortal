@@ -110,16 +110,36 @@ Authorization: Bearer
 
 ### To see available group for student users
 GET http://127.0.0.1:8000/groups/available/ HTTP/1/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5Mjk4MTMyLCJpYXQiOjE3MzkyOTYzMzIsImp0aSI6IjI3YjI5MWMyZDNmYjRlZmE5ZDFkNTMxMzIwNjU2YTc1IiwidXNlcl9pZCI6Mzh9.B5qsyjgCUbQReu-zrpAorLLyKo14-FsgQAFLegVNFa8
+Authorization: Bearer 
 
 ### Request to join group
 POST http://127.0.0.1:8000/groups/join/ HTTP/1/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5Mjk4MTMyLCJpYXQiOjE3MzkyOTYzMzIsImp0aSI6IjI3YjI5MWMyZDNmYjRlZmE5ZDFkNTMxMzIwNjU2YTc1IiwidXNlcl9pZCI6Mzh9.B5qsyjgCUbQReu-zrpAorLLyKo14-FsgQAFLegVNFa8
+Authorization: Bearer 
 Content-Type: application/json
 
 {
     "group_id":1
 }
+
+### Idea submission request for students per their group and only group members can make it
+POST http://127.0.0.1:8000/ideas/submit/ HTTP/1/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5MzgwNzg4LCJpYXQiOjE3MzkzNzg5ODgsImp0aSI6IjRiODE4YzllMTE4MDQ4ZWViNjcxNDM3MWQxNWU0MGNmIiwidXNlcl9pZCI6Mzh9.vRjeX2Mh2EQpsA_2yDgy93GmXjydj3LDK1i8NvcxuQs
+Content-Type: application/json
+
+{
+    "title": "Smart Waste Management System",
+    "broad_area": "IoT and Smart Cities",
+    "objective": "To develop an IoT-based waste monitoring system for optimized garbage collection.",
+    "originality_innovativeness": "Uses smart sensors and AI-based route optimization for garbage trucks.",
+    "key_activities": "Deploy sensors in waste bins, create a real-time dashboard, integrate AI for route planning.",
+    "data_sources": "IoT sensors, government waste reports, GPS data.",
+    "technology_usage": "Raspberry Pi, Python, GPS, Google Maps API, Django.",
+    "scalability": "Can be deployed in cities worldwide to reduce waste management costs.",
+    "social_impact": "Enhances cleanliness and improves waste collection efficiency."
+}
+
+
+
 
 
 

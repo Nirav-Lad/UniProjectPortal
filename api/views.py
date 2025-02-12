@@ -1,10 +1,12 @@
 from rest_framework.views import APIView
-from rest_framework.generics import ListCreateAPIView,UpdateAPIView,ListAPIView,RetrieveAPIView
+from rest_framework.generics import (ListCreateAPIView,UpdateAPIView,ListAPIView,RetrieveAPIView,
+                                     CreateAPIView)
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import (
     UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
-    StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer)
+    StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer,
+    IdeaSubmissionSerializer)
 from rest_framework.permissions import IsAuthenticated
 # New imports
 import pandas as pd, random
@@ -387,3 +389,26 @@ class JoinGroupAPIView(APIView):
         GroupStudents.objects.create(group=group, student_batch_link=student_batch)
 
         return Response({"message": f"Successfully joined group {group_id}."}, status=status.HTTP_200_OK)
+
+# ----------------------------------------------------------------------------------------
+class IdeaSubmissionAPIView(CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = IdeaSubmissionSerializer
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+
+        if not group:
+            return Response({"error": "You are not part of any group."}, status=status.HTTP_403_FORBIDDEN)
+
+        if group.finalized_idea:  
+            return Response({"error": "Your group’s final idea is already selected. No more ideas can be submitted."}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing_ideas_count = sum(1 for idea in [group.idea_1_id, group.idea_2_id, group.idea_3_id] if idea is not None)
+
+        if existing_ideas_count >= 3:
+            return Response({"error": "Your group has already submitted 3 ideas."}, status=status.HTTP_400_BAD_REQUEST)
+
+        response = super().create(request, *args, **kwargs)
+        return Response({"message": "Idea submitted successfully!"}, status=status.HTTP_201_CREATED)

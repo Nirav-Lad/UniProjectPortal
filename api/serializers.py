@@ -2,7 +2,7 @@ import datetime
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, StudentBatch
+from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, Idea
 from django.contrib.auth.hashers import make_password
 
 
@@ -140,3 +140,31 @@ class GroupSerializer(serializers.ModelSerializer):
 
     def get_vacancies(self, obj):
         return 4 - self.get_member_count(obj)
+    
+# --------------------------------------------------------------
+class IdeaSubmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Idea
+        fields = ['title', 'broad_area', 'objective', 'originality_innovativeness', 
+                  'key_activities', 'data_sources', 'technology_usage', 'scalability',
+                  'social_impact', 'potent_users']
+
+    def validate(self, data):
+        user = self.context['request'].user
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+
+        if not group:
+            raise serializers.ValidationError("You are not part of any group.")
+
+        existing_ideas = Idea.objects.filter(created_by__in=group.group_students.values_list('student_batch_link__enrollment__user', flat=True)).count()
+        if existing_ideas >= 3:
+            raise serializers.ValidationError("Your group has already submitted 3 ideas. No more ideas can be submitted.")
+
+        return data
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+        
+        idea = Idea.objects.create(created_by=user, **validated_data)
+        return idea
