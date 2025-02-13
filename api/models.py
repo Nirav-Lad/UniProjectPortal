@@ -24,6 +24,7 @@ class Batch(models.Model):
 
 class GroupFormation(models.Model):
     id = models.AutoField(primary_key=True) 
+    is_freeze = models.BooleanField(default=False) 
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Approved', 'Approved'),

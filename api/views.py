@@ -326,16 +326,16 @@ class AvailableGroupsAPIView(ListAPIView):
     def get_queryset(self):
         user = self.request.user
 
-        # ✅ Check if user is a student
+        #  Check if user is a student
         if user.usertype != "Student":
             self.permission_denied(self.request, message="Only students can view available groups.")
 
-        # ✅ Ensure the student is assigned to a batch
+        # Ensure the student is assigned to a batch
         student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
         if not student_batch:
             self.permission_denied(self.request, message="You are not assigned to any batch.")
 
-        # ✅ Fetch groups with less than 4 members
+        # Fetch groups with less than 4 members
         groups = GroupFormation.objects.annotate(
             member_count=Count("group_students")
         ).filter(member_count__lt=4)
@@ -369,26 +369,41 @@ class JoinGroupAPIView(APIView):
         group_id = request.data.get("group_id")
 
         if not group_id:
-            # ✅ If no group is provided, create a new one automatically
+            #  If no group is provided, create a new one automatically
             with transaction.atomic():
                 new_group = GroupFormation.objects.create(status="Pending")
                 GroupStudents.objects.create(group=new_group, student_batch_link=student_batch)
             return Response({"message": f"New group created. You are the first member (Group ID: {new_group.id})."}, status=status.HTTP_201_CREATED)
 
-        # ✅ If group_id is provided, check if the group exists
+        #  If group_id is provided, check if the group exists
         group = GroupFormation.objects.filter(id=group_id).first()
         if not group:
             return Response({"error": "Group not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Check if group has space (max 4 members)
+        if group.is_freeze:
+            return Response({"error": "Group formation is frozen. You cannot join a group now."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        #  Check if group has space (max 4 members)
         member_count = GroupStudents.objects.filter(group=group).count()
         if member_count >= 4:
             return Response({"error": "This group is already full."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Add student to the group
+        # Add student to the group
         GroupStudents.objects.create(group=group, student_batch_link=student_batch)
 
         return Response({"message": f"Successfully joined group {group_id}."}, status=status.HTTP_200_OK)
+
+# ----------------------------------------------------------------------------------------
+class FreezeGroupFormationAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.usertype != "Admin":
+            return Response({"error": "You do not have permission to perform this action."}, status=status.HTTP_403_FORBIDDEN)
+
+        GroupFormation.objects.update(is_freeze=True)
+
+        return Response({"message": "Group formation has been frozen. No further changes allowed."}, status=status.HTTP_200_OK)
 
 # ----------------------------------------------------------------------------------------
 class IdeaSubmissionAPIView(CreateAPIView):
@@ -402,13 +417,34 @@ class IdeaSubmissionAPIView(CreateAPIView):
         if not group:
             return Response({"error": "You are not part of any group."}, status=status.HTTP_403_FORBIDDEN)
 
-        if group.finalized_idea:  
+        if group.is_freeze:
+            return Response({"error": "Group formation is frozen. Idea submission is not allowed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if group.finalized_idea:
             return Response({"error": "Your group’s final idea is already selected. No more ideas can be submitted."}, status=status.HTTP_400_BAD_REQUEST)
 
-        existing_ideas_count = sum(1 for idea in [group.idea_1_id, group.idea_2_id, group.idea_3_id] if idea is not None)
+        existing_ideas = [group.idea_1, group.idea_2, group.idea_3]
+        existing_ideas_count = sum(1 for idea in existing_ideas if idea is not None)
 
         if existing_ideas_count >= 3:
             return Response({"error": "Your group has already submitted 3 ideas."}, status=status.HTTP_400_BAD_REQUEST)
 
-        response = super().create(request, *args, **kwargs)
+        with transaction.atomic():
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            # Save idea with created_by set automatically by serializer
+            idea = serializer.save(created_by=user)  
+
+            # Assign idea to the first available slot in group
+            if not group.idea_1:
+                group.idea_1 = idea
+            elif not group.idea_2:
+                group.idea_2 = idea
+            elif not group.idea_3:
+                group.idea_3 = idea
+
+            group.save()
+
         return Response({"message": "Idea submitted successfully!"}, status=status.HTTP_201_CREATED)
+# ----------------------------------------------------------------------------------------
