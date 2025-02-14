@@ -448,3 +448,33 @@ class IdeaSubmissionAPIView(CreateAPIView):
 
         return Response({"message": "Idea submitted successfully!"}, status=status.HTTP_201_CREATED)
 # ----------------------------------------------------------------------------------------
+class StudentGroupDetailsAPIView(RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = GroupSerializer
+
+    def get_object(self):
+        user = self.request.user
+
+        if user.usertype != "Student":
+            raise Exception("Only students can access this.")
+
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+        if not group:
+            raise Exception("You are not part of any group.")
+
+        return group
+    
+# ----------------------------------------------------------------------------------------
+class AdminGroupOverviewAPIView(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = GroupSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.usertype != "Admin":
+            raise Exception("Only admins can access this.")
+
+        return GroupFormation.objects.all()
+
+

@@ -114,7 +114,7 @@ Authorization: Bearer
 
 ### Request to join group
 POST http://127.0.0.1:8000/groups/join/ HTTP/1/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5NDY3NTQ4LCJpYXQiOjE3Mzk0NjU3NDgsImp0aSI6IjU1MTg3M2E0YTFjMTQ1ODE4YzBkMTQ1NTRlODgxZmJhIiwidXNlcl9pZCI6Mzl9.FoNzaGIQMxSr1N7P1OQySaaSPBKm7pexMbFfeV70NRk
+Authorization: Bearer 
 Content-Type: application/json
 
 {
@@ -123,7 +123,7 @@ Content-Type: application/json
 
 ### Idea submission request for students per their group and only group members can make it
 POST http://127.0.0.1:8000/ideas/submit/ HTTP/1/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5NDY3NTQ4LCJpYXQiOjE3Mzk0NjU3NDgsImp0aSI6IjU1MTg3M2E0YTFjMTQ1ODE4YzBkMTQ1NTRlODgxZmJhIiwidXNlcl9pZCI6Mzl9.FoNzaGIQMxSr1N7P1OQySaaSPBKm7pexMbFfeV70NRk
+Authorization: Bearer 
 Content-Type: application/json
 
 {
@@ -140,10 +140,16 @@ Content-Type: application/json
 
 ### Idea submission freezed by admin user
 POST http://127.0.0.1:8000/groups/freeze/ HTTP/1/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzM5NDY3NTAxLCJpYXQiOjE3Mzk0NjU3MDEsImp0aSI6IjUwNWVhY2Q1ZGY0NTRjYmQ5MWY3MWViNWEzZTc2NDM5IiwidXNlcl9pZCI6NH0.utjZWydva4EOK-ltll9KZ3ej0_0Ht_mTexuEP02Ge9Y
+Authorization: Bearer 
 Content-Type: application/json
 
+### Students can view their group details (members & submitted ideas)
+GET http://127.0.0.1:8000/groups/my-group/ HTTP/1/1
+Authorization: Bearer 
 
+### Admin can view group-wise student details & submitted ideas
+GET http://127.0.0.1:8000/groups/admin-overview/ HTTP/1/1
+Authorization: Bearer 
 
 
 

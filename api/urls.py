@@ -17,4 +17,6 @@ urlpatterns = [
     path('groups/join/', views.JoinGroupAPIView.as_view(), name='join-group'),
     path('ideas/submit/', views.IdeaSubmissionAPIView.as_view(), name='submit-idea'),
     path('groups/freeze/', views.FreezeGroupFormationAPIView.as_view(), name='freeze-groups'),
+    path("groups/my-group/", views.StudentGroupDetailsAPIView.as_view(), name="student-group-details"),
+    path("groups/admin-overview/", views.AdminGroupOverviewAPIView.as_view(), name="admin-group-overview"),
 ]

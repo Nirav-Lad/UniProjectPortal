@@ -120,10 +120,12 @@ class GroupSerializer(serializers.ModelSerializer):
     members = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
     vacancies = serializers.SerializerMethodField()
+    ideas = serializers.SerializerMethodField()
+    finalized_idea = serializers.StringRelatedField()
 
     class Meta:
         model = GroupFormation
-        fields = ["id", "status", "members", "member_count", "vacancies"]
+        fields = ["id", "status", "is_freeze", "finalized_idea", "members", "member_count", "vacancies", "ideas"]
 
     def get_members(self, obj):
         students = GroupStudents.objects.filter(group=obj).select_related("student_batch_link__enrollment")
@@ -140,7 +142,11 @@ class GroupSerializer(serializers.ModelSerializer):
 
     def get_vacancies(self, obj):
         return 4 - self.get_member_count(obj)
-    
+
+    def get_ideas(self, obj):
+        ideas = [obj.idea_1, obj.idea_2, obj.idea_3]
+        return [{"id": idea.id, "title": idea.title} for idea in ideas if idea]
+  
 # --------------------------------------------------------------
 class IdeaSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
