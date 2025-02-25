@@ -8,11 +8,11 @@ from django.contrib.auth.hashers import make_password
 
 class UserLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password_or_otp = serializers.CharField(write_only=True) 
+    password = serializers.CharField(write_only=True)
 
     def validate(self, data):
         email = data.get("email")
-        password_or_otp = data.get("password_or_otp")
+        password = data.get("password")
 
         try:
             user = UserMaster.objects.get(email=email)
@@ -24,21 +24,27 @@ class UserLoginSerializer(serializers.Serializer):
 
         # Detect First Login using `last_login`
         if user.usertype == "Student" and user.last_login is None:
-            if password_or_otp == user.otp:  
+            if password == user.otp:
                 return {
                     "user": user,
                     "require_password_change": True,
-                    "message": "OTP verified. Please set your password."
+                    "message": "OTP verified. Please set your password.",
+                    "usertype": user.usertype,
+                    "enrollment_id": user.student_details.enrollment_id if hasattr(user, 'student_details') else None,
+                    "name": user.student_details.name if user.usertype=="Student" and hasattr(user,'student_details') else None
                 }
             else:
                 raise serializers.ValidationError("Invalid OTP")
 
         # If password is set, authenticate using password
-        user = authenticate(email=email, password=password_or_otp)
+        user = authenticate(email=email, password=password)
         if user:
             return {
                 "user": user,
-                "require_password_change": False
+                "require_password_change": False,
+                "usertype": user.usertype,
+                "enrollment_id": user.student_details.enrollment_id if user.usertype == "Student" and hasattr(user, 'student_details') else None,
+                "name": user.student_details.name if user.usertype=="Student" and hasattr(user,'student_details') else None
             }
 
         raise serializers.ValidationError("Invalid email or password")
@@ -48,7 +54,7 @@ class UserLoginSerializer(serializers.Serializer):
         return {
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-        } 
+        }
 # ------------------------------------------------------------
 class SetPasswordSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, min_length=6)
@@ -171,3 +177,10 @@ class IdeaSubmissionSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         return Idea.objects.create(**validated_data) 
         return idea
+    
+# ---------------------------------------------------------
+
+class StudentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentDetails
+        fields = ['name', 'email', 'enrollement_id', 'batch_name']

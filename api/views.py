@@ -25,6 +25,9 @@ class LoginAPIView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data["user"]
             require_password_change = serializer.validated_data["require_password_change"]
+            usertype = serializer.validated_data["usertype"]
+            enrollment_id = serializer.validated_data.get("enrollment_id")
+            name = serializer.validated_data.get("name")
 
             tokens = RefreshToken.for_user(user)
 
@@ -34,21 +37,16 @@ class LoginAPIView(APIView):
                 "tokens": {
                     "refresh": str(tokens),
                     "access": str(tokens.access_token),
+                },
+                "user_details": {
+                    "usertype": usertype,
+                    "enrollment_id": enrollment_id,
+                    "name": name
                 }
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-# -----------------------------------------------------------------------------------------
-class SetPasswordAPIView(APIView):
-    permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        serializer = SetPasswordSerializer(data=request.data, context={"request": request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Password set successfully. You can now log in with your password."}, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 # -----------------------------------------------------------------------------------------
 class BatchCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -172,8 +170,10 @@ class StudentUploadView(APIView):
 # -----------------------------------------------------------------------------------------    
 # ----------SIngle student upload
 
+# Checks for admin user type=can only perform the restricted operations
+# like user creation and etc. 
 class RegisterSingleStudentAPIView(APIView):
-    permission_classes = [IsAuthenticated]  # ✅ Ensure only logged-in users (Admins) can access
+    permission_classes = [IsAuthenticated]  #  Ensure only logged-in users (Admins) can access
 
     def post(self, request):
         email = request.data.get('email')
@@ -181,12 +181,19 @@ class RegisterSingleStudentAPIView(APIView):
         enrollment_id = request.data.get('enrollment_id')
         batch_name = request.data.get('batch_name')
 
+        # print("requested data:", request.data)
+        print("requested data name:", request.data.get('name'))
+        print("requested data email:", request.data.get('email'))
+        print("requested data enrollment_id:", request.data.get('enrollment_id'))
+        print("requested data batch_name:", request.data.get('batch_name'))
+
         if not email or not name or not enrollment_id or not batch_name:
             return Response({'error': 'All fields are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             validate_email(email)
         except ValidationError:
+            print(" 1 requested data:", request.data)
             return Response({'error': 'Invalid email format.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
@@ -206,25 +213,25 @@ class RegisterSingleStudentAPIView(APIView):
             with transaction.atomic():
                 created_by_user = request.user if request.user.is_authenticated else None
 
-                # ✅ Create UserMaster with `created_by`
+                # Create UserMaster with created_by
                 user = UserMaster.objects.create(
                     email=email,
                     otp=otp,
                     usertype='Student',
                     status='Active',
-                    enrollment_id=enrollment_id,  # ✅ Link enrollment ID to UserMaster
-                    created_by=created_by_user  # ✅ Assign created_by
+                    enrollment_id=enrollment_id,  # Link enrollment ID to UserMaster
+                    created_by=created_by_user  # Assign created_by
                 )
 
-                # ✅ Create StudentDetails and link to UserMaster
+                # Create StudentDetails and link to UserMaster
                 student_details = StudentDetails.objects.create(
                     enrollment_id=enrollment_id,
                     name=name,
                     batch=batch,
-                    user=user  # ✅ Ensure StudentDetails is linked to UserMaster
+                    user=user  # Ensure StudentDetails is linked to UserMaster
                 )
 
-                # ✅ Create StudentBatch entry
+                # Create StudentBatch entry
                 StudentBatch.objects.create(
                     enrollment=student_details,
                     current_batch=batch,
@@ -245,27 +252,8 @@ class RegisterSingleStudentAPIView(APIView):
         except Exception as e:
             return Response({'warning': f'Student registered but failed to send OTP email: {str(e)}'}, status=status.HTTP_207_MULTI_STATUS)
 
-        return Response({'message': 'Student registered successfully.', 'otp': otp}, status=status.HTTP_201_CREATED)
+        return Response({'message': 'Student registered successfully.'}, status=status.HTTP_201_CREATED)
 
-    
-# ------------------------------------------------------------------------------------
-class UpdateStudentDetailsView(UpdateAPIView):
-    serializer_class = StudentDetailsSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_object(self):
-        return self.request.user.student_details  #  Correctly fetch StudentDetails object
-
-    def update(self, request, *args, **kwargs):
-        student = self.get_object()
-
-        if not student:
-            return Response({"error": "Student record not found."}, status=404)
-
-        if student.section and student.mobile_no:
-            return Response({"message": "Details already updated."}, status=400)
-
-        return super().update(request, *args, **kwargs)
 # ---------------------------------------------------------------------------------------
 class GetStudentsInBatchAPIView(ListAPIView):
     serializer_class = StudentInBatchSerializer
@@ -476,5 +464,36 @@ class AdminGroupOverviewAPIView(ListAPIView):
             raise Exception("Only admins can access this.")
 
         return GroupFormation.objects.all()
+# ----------------------------------------------------------------------------------------
+class SetupStudentAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request):
+        user = request.user
+
+        # Check if password needs to be set
+        if user.last_login is None:
+            password_serializer = SetPasswordSerializer(data=request.data, context={"request": request})
+            if password_serializer.is_valid():
+                password_serializer.save()
+            else:
+                return Response(password_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch the student's details
+        try:
+            student = user.student_details
+        except StudentDetails.DoesNotExist:
+            return Response({"error": "Student record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if student details are already updated
+        if student.section and student.mobile_no:
+            return Response({"message": "Password set successfully. Details are already updated."}, status=status.HTTP_200_OK)
+
+        # Update student details
+        details_serializer = StudentDetailsSerializer(student, data=request.data, partial=True)
+        if details_serializer.is_valid():
+            details_serializer.save()
+            return Response({"message": "Password set and details updated successfully."}, status=status.HTTP_200_OK)
+
+        return Response(details_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

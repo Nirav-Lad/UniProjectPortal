@@ -18,7 +18,7 @@ content-type: application/json
 
 {
     "email":"nirav20267@gmail.com",
-    "password_or_otp":"admin"
+    "password":"admin"
 }
 
 ###
@@ -40,7 +40,7 @@ content-type: application/json
 
 {
     "email":"niravkumar.r.lad@nuv.ac.in",
-    "password_or_otp":"niravlad"
+    "password":"niravlad"
 }
 
 ### setting password for after first login
@@ -72,7 +72,7 @@ Content-Type: application/json
 
 {
     "section": "B2",
-    "mobile_no": "0123456789"
+    "mobile_no": "7894561230"
 }
 
 ### first login with otp like normal login for zels
@@ -80,8 +80,8 @@ POST http://127.0.0.1:8000/login/ HTTP/1/1
 content-type: application/json
 
 {
-    "email":"zels.s@nuv.ac.in",
-    "password_or_otp":"zelsSorathiya"
+    "email":"yuvrajahuja63@gmail.com",
+    "password":"yuvrajhuja"
 }
 
 ### setting password for after first login for zels
@@ -90,7 +90,7 @@ content-type: application/json
 Authorization: Bearer 
 
 {
-    "password":"zelsSorathiya"
+    "password":"yuvrajhuja"
 }
 
 ### New request to see the students in particualr batches 
@@ -150,6 +150,27 @@ Authorization: Bearer
 ### Admin can view group-wise student details & submitted ideas
 GET http://127.0.0.1:8000/groups/admin-overview/ HTTP/1/1
 Authorization: Bearer 
+
+### Setting the password after first login and filling remaining details
+POST http://127.0.0.1:8000/setup-student/ HTTP/1/1
+Authorization: Bearer 
+Content-Type: application/json
+
+{
+    "password": "abhivaghasiya",
+    "section": "B2",
+    "mobile_no": "1234567890"
+}
+
+### first login with otp like normal login for zels
+POST http://127.0.0.1:8000/login/ HTTP/1/1
+content-type: application/json
+
+{
+    "email":"abhi.k.vaghasiya@nuv.ac.in",
+    "password":"abhivaghasiya"
+}
+
 
 
 
