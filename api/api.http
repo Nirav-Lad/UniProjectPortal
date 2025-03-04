@@ -172,6 +172,20 @@ content-type: application/json
 }
 
 
+### To get the enrollment id of all student of same batch
+GET http://127.0.0.1:8000/get-enrollids/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer 
+
+### New group formation api view
+POST http://127.0.0.1:8000/register-group/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer 
+
+{
+    "enrollment_ids":[22000744,24000859]
+}
+
 
 
 

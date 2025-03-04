@@ -48,6 +48,7 @@ class LoginAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # -----------------------------------------------------------------------------------------
+# There exists no such api view for batch creation 
 class BatchCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = BatchSerializer
@@ -307,43 +308,153 @@ class GetStudentProfileAPIView(RetrieveAPIView):
         except StudentDetails.DoesNotExist:
             raise Exception("Student profile not found.")
 # ----------------------------------------------------------------------------------------
-class AvailableGroupsAPIView(ListAPIView):
+# class AvailableGroupsAPIView(ListAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = GroupSerializer
+
+#     def get_queryset(self):
+#         user = self.request.user
+
+#         #  Check if user is a student
+#         if user.usertype != "Student":
+#             self.permission_denied(self.request, message="Only students can view available groups.")
+
+#         # Ensure the student is assigned to a batch
+#         student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
+#         if not student_batch:
+#             self.permission_denied(self.request, message="You are not assigned to any batch.")
+
+#         # Fetch groups with less than 4 members
+#         groups = GroupFormation.objects.annotate(
+#             member_count=Count("group_students")
+#         ).filter(member_count__lt=4)
+
+#         if not groups.exists():
+#             return Response({"message": "No available groups found."}, status=status.HTTP_204_NO_CONTENT)
+
+#         return groups
+# # ----------------------------------------------------------------------------------------
+# class JoinGroupAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         user = request.user
+
+#         # Ensure user is a student
+#         if user.usertype != "Student":
+#             return Response({"error": "Only students can join groups."}, status=status.HTTP_403_FORBIDDEN)
+
+#         # Fetch student's batch
+#         student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
+#         if not student_batch:
+#             return Response({"error": "You are not assigned to any batch."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Check if student is already in a group
+#         existing_group = GroupStudents.objects.filter(student_batch_link=student_batch).first()
+#         if existing_group:
+#             return Response({"error": "You are already in a group."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Get group_id from request
+#         group_id = request.data.get("group_id")
+
+#         if not group_id:
+#             #  If no group is provided, create a new one automatically
+#             with transaction.atomic():
+#                 new_group = GroupFormation.objects.create(status="Pending")
+#                 GroupStudents.objects.create(group=new_group, student_batch_link=student_batch)
+#             return Response({"message": f"New group created. You are the first member (Group ID: {new_group.id})."}, status=status.HTTP_201_CREATED)
+
+#         #  If group_id is provided, check if the group exists
+#         group = GroupFormation.objects.filter(id=group_id).first()
+#         if not group:
+#             return Response({"error": "Group not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         if group.is_freeze:
+#             return Response({"error": "Group formation is frozen. You cannot join a group now."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         #  Check if group has space (max 4 members)
+#         member_count = GroupStudents.objects.filter(group=group).count()
+#         if member_count >= 4:
+#             return Response({"error": "This group is already full."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Add student to the group
+#         GroupStudents.objects.create(group=group, student_batch_link=student_batch)
+
+#         return Response({"message": f"Successfully joined group {group_id}."}, status=status.HTTP_200_OK)
+
+# # ----------------------------------------------------------------------------------------
+# class FreezeGroupFormationAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         if request.user.usertype != "Admin":
+#             return Response({"error": "You do not have permission to perform this action."}, status=status.HTTP_403_FORBIDDEN)
+
+#         GroupFormation.objects.update(is_freeze=True)
+
+#         return Response({"message": "Group formation has been frozen. No further changes allowed."}, status=status.HTTP_200_OK)
+
+# ----------------------------------------------------------------------------------------
+# This code is first tested then only 
+# Get enrollment id's
+class BatchEnrollmentIDsAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = GroupSerializer
 
-    def get_queryset(self):
-        user = self.request.user
+    def get(self, request):
+        user = request.user
 
-        #  Check if user is a student
+        # Ensure the user is a student
         if user.usertype != "Student":
-            self.permission_denied(self.request, message="Only students can view available groups.")
+            return Response({"error": "Only students can view enrollment IDs."}, status=status.HTTP_403_FORBIDDEN)
 
-        # Ensure the student is assigned to a batch
+        # Get the batch of the logged-in student
         student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
         if not student_batch:
-            self.permission_denied(self.request, message="You are not assigned to any batch.")
+            return Response({"error": "You are not assigned to any batch."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch groups with less than 4 members
-        groups = GroupFormation.objects.annotate(
-            member_count=Count("group_students")
-        ).filter(member_count__lt=4)
+        # Check if the logged-in user is already in a group and get the group ID
+        group_student = GroupStudents.objects.filter(student_batch_link=student_batch).select_related('group').first()
+        if group_student:
+            return Response(
+                {
+                    "message": "You are already in a group.",
+                    "is_already_in_group": True,
+                    "group_id": group_student.group.id  # Sending the group ID
+                },
+                status=status.HTTP_200_OK
+            )
 
-        if not groups.exists():
-            return Response({"message": "No available groups found."}, status=status.HTTP_204_NO_CONTENT)
+        # Get the enrollment ID of the logged-in user
+        logged_in_enrollment_id = student_batch.enrollment.enrollment_id
 
-        return groups
-# ----------------------------------------------------------------------------------------
-class JoinGroupAPIView(APIView):
+        # Get student batches that are already in a group
+        grouped_students = GroupStudents.objects.values_list("student_batch_link_id", flat=True)
+
+        # Fetch enrollment IDs and names of other students in the same batch (excluding logged-in user & already grouped students)
+        students = StudentBatch.objects.filter(
+            current_batch=student_batch.current_batch
+        ).exclude(enrollment__enrollment_id=logged_in_enrollment_id).exclude(id__in=grouped_students).select_related("enrollment")
+
+        # Prepare response data with enrollment IDs and names
+        student_data = [
+            {"enrollment_id": student.enrollment.enrollment_id, "name": student.enrollment.name}
+            for student in students
+        ]
+
+        return Response({"students": student_data, "is_already_in_group": False}, status=status.HTTP_200_OK)
+
+# -------------------------------------------------------------------------------------
+# Register group
+class RegisterGroupAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         user = request.user
-
-        # Ensure user is a student
+        # Ensure only students can register groups
         if user.usertype != "Student":
-            return Response({"error": "Only students can join groups."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": "Only students can register groups."}, status=status.HTTP_403_FORBIDDEN)
 
-        # Fetch student's batch
+        # Get the batch of the logged-in student
         student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
         if not student_batch:
             return Response({"error": "You are not assigned to any batch."}, status=status.HTTP_400_BAD_REQUEST)
@@ -353,46 +464,30 @@ class JoinGroupAPIView(APIView):
         if existing_group:
             return Response({"error": "You are already in a group."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get group_id from request
-        group_id = request.data.get("group_id")
+        # Get the list of enrollment IDs from the request
+        enrollment_ids = request.data.get("enrollment_ids", [])
 
-        if not group_id:
-            #  If no group is provided, create a new one automatically
-            with transaction.atomic():
-                new_group = GroupFormation.objects.create(status="Pending")
-                GroupStudents.objects.create(group=new_group, student_batch_link=student_batch)
-            return Response({"message": f"New group created. You are the first member (Group ID: {new_group.id})."}, status=status.HTTP_201_CREATED)
+        if not enrollment_ids or not (2 <= len(enrollment_ids) <= 3):
+            return Response({"error": "You must provide enrollment IDs of 2-3 other students."}, status=status.HTTP_400_BAD_REQUEST)
 
-        #  If group_id is provided, check if the group exists
-        group = GroupFormation.objects.filter(id=group_id).first()
-        if not group:
-            return Response({"error": "Group not found."}, status=status.HTTP_400_BAD_REQUEST)
+        # Fetch the student batch objects of provided enrollment IDs
+        batch_students = StudentBatch.objects.filter(enrollment__enrollment_id__in=enrollment_ids, current_batch=student_batch.current_batch)
 
-        if group.is_freeze:
-            return Response({"error": "Group formation is frozen. You cannot join a group now."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        #  Check if group has space (max 4 members)
-        member_count = GroupStudents.objects.filter(group=group).count()
-        if member_count >= 4:
-            return Response({"error": "This group is already full."}, status=status.HTTP_400_BAD_REQUEST)
+        if batch_students.count() != len(enrollment_ids):
+            return Response({"error": "Some enrollment IDs are invalid or not in your batch."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Add student to the group
-        GroupStudents.objects.create(group=group, student_batch_link=student_batch)
+        # Create the new group
+        with transaction.atomic():
+            new_group = GroupFormation.objects.create(status="Pending")
+            # Add the registering student
+            GroupStudents.objects.create(group=new_group, student_batch_link=student_batch)
+            # Add the selected students
+            for student in batch_students:
+                GroupStudents.objects.create(group=new_group, student_batch_link=student)
 
-        return Response({"message": f"Successfully joined group {group_id}."}, status=status.HTTP_200_OK)
+        return Response({"message": f"Group registered successfully. Group ID: {new_group.id}"}, status=status.HTTP_201_CREATED)
 
-# ----------------------------------------------------------------------------------------
-class FreezeGroupFormationAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        if request.user.usertype != "Admin":
-            return Response({"error": "You do not have permission to perform this action."}, status=status.HTTP_403_FORBIDDEN)
-
-        GroupFormation.objects.update(is_freeze=True)
-
-        return Response({"message": "Group formation has been frozen. No further changes allowed."}, status=status.HTTP_200_OK)
-
+# -------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
 class IdeaSubmissionAPIView(CreateAPIView):
     permission_classes = [IsAuthenticated]
