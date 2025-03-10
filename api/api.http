@@ -127,15 +127,17 @@ Authorization: Bearer
 Content-Type: application/json
 
 {
-    "title": "Smart Waste Management System",
-    "broad_area": "IoT and Smart Cities",
-    "objective": "To develop an IoT-based waste monitoring system for optimized garbage collection.",
-    "originality_innovativeness": "Uses smart sensors and AI-based route optimization for garbage trucks.",
-    "key_activities": "Deploy sensors in waste bins, create a real-time dashboard, integrate AI for route planning.",
-    "data_sources": "IoT sensors, government waste reports, GPS data.",
-    "technology_usage": "Raspberry Pi, Python, GPS, Google Maps API, Django.",
-    "scalability": "Can be deployed in cities worldwide to reduce waste management costs.",
-    "social_impact": "Enhances cleanliness and improves waste collection efficiency."
+    "idea_id":2,
+    "title": "Solar-Powered Microgrid Network",
+    "broad_area": "Renewable Energy",
+    "objective": "To create a decentralized solar energy system for rural electrification.",
+    "originality_innovativeness": "Combines solar panels with blockchain for transparent energy trading.",
+    "key_activities": "Install solar units, develop blockchain platform, train local operators.",
+    "data_sources": "Solar energy output, local energy consumption stats, weather data.",
+    "technology_usage": "Solar panels, blockchain, IoT sensors, Node.js.",
+    "scalability": "Applicable to any off-grid region with sunlight availability.",
+    "social_impact": "Provides reliable power to remote areas, reducing energy poverty.",
+    "potent_users": "Rural households, small businesses, community centers."
 }
 
 ### Idea submission freezed by admin user
@@ -186,9 +188,30 @@ Authorization: Bearer
     "enrollment_ids":[22000744,24000859]
 }
 
+### Checking api for idea submissions
+GET http://127.0.0.1:8000/ideas/check/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQxNTQxNjIxLCJpYXQiOjE3NDE1Mzk4MjEsImp0aSI6IjA1YmVkOTA1ODQ5OTQ3OWNiNDRlMTZkOWJiNzJmMGY0IiwidXNlcl9pZCI6NDF9.cE9jno1aP6pIxlo0lAh8j83XL_bkdh7w8gKgbKg6vTE
 
+### Update ideas
+PUT HTTP://127.0.0.1:8000/ideas/update/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQxNTQxNjIxLCJpYXQiOjE3NDE1Mzk4MjEsImp0aSI6IjA1YmVkOTA1ODQ5OTQ3OWNiNDRlMTZkOWJiNzJmMGY0IiwidXNlcl9pZCI6NDF9.cE9jno1aP6pIxlo0lAh8j83XL_bkdh7w8gKgbKg6vTE
 
+{
+    "idea_id": 1,
+    "title": "Campus connect 2",
+    "data_sources":"College student's data and data from kaggle"
+}
 
+### reset ideas
+DELETE http://127.0.0.1:8000/ideas/reset/ HTTP/1/1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQxNTQxNjIxLCJpYXQiOjE3NDE1Mzk4MjEsImp0aSI6IjA1YmVkOTA1ODQ5OTQ3OWNiNDRlMTZkOWJiNzJmMGY0IiwidXNlcl9pZCI6NDF9.cE9jno1aP6pIxlo0lAh8j83XL_bkdh7w8gKgbKg6vTE
+
+{
+    "idea_id":1
+}
 
 
 

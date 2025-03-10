@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.generics import (ListCreateAPIView,UpdateAPIView,ListAPIView,RetrieveAPIView,
-                                     CreateAPIView)
+                                     CreateAPIView,DestroyAPIView)
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import (
@@ -10,7 +10,7 @@ from .serializers import (
 from rest_framework.permissions import IsAuthenticated
 # New imports
 import pandas as pd, random
-from .models import UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents
+from .models import UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,Idea
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -307,81 +307,7 @@ class GetStudentProfileAPIView(RetrieveAPIView):
             return user.student_details  # Fetch linked StudentDetails record
         except StudentDetails.DoesNotExist:
             raise Exception("Student profile not found.")
-# ----------------------------------------------------------------------------------------
-# class AvailableGroupsAPIView(ListAPIView):
-#     permission_classes = [IsAuthenticated]
-#     serializer_class = GroupSerializer
-
-#     def get_queryset(self):
-#         user = self.request.user
-
-#         #  Check if user is a student
-#         if user.usertype != "Student":
-#             self.permission_denied(self.request, message="Only students can view available groups.")
-
-#         # Ensure the student is assigned to a batch
-#         student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
-#         if not student_batch:
-#             self.permission_denied(self.request, message="You are not assigned to any batch.")
-
-#         # Fetch groups with less than 4 members
-#         groups = GroupFormation.objects.annotate(
-#             member_count=Count("group_students")
-#         ).filter(member_count__lt=4)
-
-#         if not groups.exists():
-#             return Response({"message": "No available groups found."}, status=status.HTTP_204_NO_CONTENT)
-
-#         return groups
-# # ----------------------------------------------------------------------------------------
-# class JoinGroupAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         user = request.user
-
-#         # Ensure user is a student
-#         if user.usertype != "Student":
-#             return Response({"error": "Only students can join groups."}, status=status.HTTP_403_FORBIDDEN)
-
-#         # Fetch student's batch
-#         student_batch = StudentBatch.objects.filter(enrollment__user=user, current_batch__isnull=False).first()
-#         if not student_batch:
-#             return Response({"error": "You are not assigned to any batch."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Check if student is already in a group
-#         existing_group = GroupStudents.objects.filter(student_batch_link=student_batch).first()
-#         if existing_group:
-#             return Response({"error": "You are already in a group."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Get group_id from request
-#         group_id = request.data.get("group_id")
-
-#         if not group_id:
-#             #  If no group is provided, create a new one automatically
-#             with transaction.atomic():
-#                 new_group = GroupFormation.objects.create(status="Pending")
-#                 GroupStudents.objects.create(group=new_group, student_batch_link=student_batch)
-#             return Response({"message": f"New group created. You are the first member (Group ID: {new_group.id})."}, status=status.HTTP_201_CREATED)
-
-#         #  If group_id is provided, check if the group exists
-#         group = GroupFormation.objects.filter(id=group_id).first()
-#         if not group:
-#             return Response({"error": "Group not found."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         if group.is_freeze:
-#             return Response({"error": "Group formation is frozen. You cannot join a group now."}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         #  Check if group has space (max 4 members)
-#         member_count = GroupStudents.objects.filter(group=group).count()
-#         if member_count >= 4:
-#             return Response({"error": "This group is already full."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Add student to the group
-#         GroupStudents.objects.create(group=group, student_batch_link=student_batch)
-
-#         return Response({"message": f"Successfully joined group {group_id}."}, status=status.HTTP_200_OK)
-
+# ------------------------------------------------------------------------------------------
 # # ----------------------------------------------------------------------------------------
 # class FreezeGroupFormationAPIView(APIView):
 #     permission_classes = [IsAuthenticated]
@@ -485,7 +411,7 @@ class RegisterGroupAPIView(APIView):
             for student in batch_students:
                 GroupStudents.objects.create(group=new_group, student_batch_link=student)
 
-        return Response({"message": f"Group registered successfully. Group ID: {new_group.id}"}, status=status.HTTP_201_CREATED)
+        return Response({"message": f"Group registered successfully.","group_id":{new_group.id}}, status=status.HTTP_201_CREATED)
 
 # -------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
@@ -495,8 +421,14 @@ class IdeaSubmissionAPIView(CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         user = request.user
-        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+        print(request.data)
 
+        # Ensure only students can submit ideas
+        if user.usertype != "Student":
+            return Response({"error": "Only students can submit ideas."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Fetch the group of the logged-in student
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
         if not group:
             return Response({"error": "You are not part of any group."}, status=status.HTTP_403_FORBIDDEN)
 
@@ -506,30 +438,156 @@ class IdeaSubmissionAPIView(CreateAPIView):
         if group.finalized_idea:
             return Response({"error": "Your group’s final idea is already selected. No more ideas can be submitted."}, status=status.HTTP_400_BAD_REQUEST)
 
-        existing_ideas = [group.idea_1, group.idea_2, group.idea_3]
-        existing_ideas_count = sum(1 for idea in existing_ideas if idea is not None)
+        # Ensure request contains `idea_id`
+        idea_number = request.data.get("idea_id")
+        if idea_number not in [1, 2, 3]:
+            return Response({"error": "Invalid idea_id. Must be 1, 2, or 3."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if existing_ideas_count >= 3:
-            return Response({"error": "Your group has already submitted 3 ideas."}, status=status.HTTP_400_BAD_REQUEST)
+        # Map idea_id to the corresponding field in GroupFormation
+        idea_field_map = {1: "idea_1", 2: "idea_2", 3: "idea_3"}
+        idea_field = idea_field_map[idea_number]
+
+        # Check if an idea already exists in this slot
+        existing_idea = getattr(group, idea_field, None)
+        if existing_idea:
+            return Response({"error": f"Idea slot {idea_number} is already filled. Please update it instead."}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            # Save idea with created_by set automatically by serializer
-            idea = serializer.save(created_by=user)  
+            # Save idea with created_by set automatically
+            idea = serializer.save(created_by=user)
 
-            # Assign idea to the first available slot in group
-            if not group.idea_1:
-                group.idea_1 = idea
-            elif not group.idea_2:
-                group.idea_2 = idea
-            elif not group.idea_3:
-                group.idea_3 = idea
-
+            # Assign idea to the specified slot
+            setattr(group, idea_field, idea)
             group.save()
 
-        return Response({"message": "Idea submitted successfully!"}, status=status.HTTP_201_CREATED)
+        return Response({"message": f"Idea {idea_number} submitted successfully."}, status=status.HTTP_201_CREATED)
+
+# ------------------------------------------------------------------------------------------------------
+class CheckIdeaSubmissionAPIView(RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+
+        # Ensure only students can check idea submission
+        if user.usertype != "Student":
+            return Response({"error": "Only students can check idea submission."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get the student's group
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+
+        if not group:
+            return Response({"error": "You are not part of any group."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Check each idea slot and add an 'is_submitted' field
+        ideas_data = []
+
+        for idx, idea in enumerate([group.idea_1, group.idea_2, group.idea_3], start=1):
+            if idea:
+                idea_data = IdeaSubmissionSerializer(idea).data
+                idea_data["idea_id"] = idx  # Assign idea ID (1, 2, or 3)
+                idea_data["is_submitted"] = True
+            else:
+                idea_data = {
+                    "idea_id": idx,
+                    "is_submitted": False
+                }
+            
+            ideas_data.append(idea_data)
+
+        return Response({"ideas": ideas_data}, status=status.HTTP_200_OK)
+# ----------------------------------------------------------------------------------------
+class UpdateIdeaAPIView(UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class=IdeaSubmissionSerializer
+    queryset = Idea.objects.all()
+
+    def get_object(self):
+        """Fetch the idea based on idea_id (1, 2, or 3) from GroupFormation."""
+        user = self.request.user
+
+        # Ensure the user is a student
+        if user.usertype != "Student":
+            return Response({"error": "Only students can update ideas."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get the user's group
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+        if not group:
+            return Response({"error": "You are not part of any group."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Ensure request contains `idea_id`
+        idea_number = self.request.data.get("idea_id")
+        if idea_number not in [1, 2, 3]:
+            return Response({"error": "Invalid idea ID. Must be 1, 2, or 3."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Map idea_id (1, 2, 3) to the corresponding field in GroupFormation
+        idea_field_map = {1: group.idea_1, 2: group.idea_2, 3: group.idea_3}
+        idea = idea_field_map.get(idea_number)
+
+        if not idea:
+            return Response({"error": f"Idea {idea_number} is not assigned to your group."}, status=status.HTTP_404_NOT_FOUND)
+
+        return idea
+
+    def update(self, request, *args, **kwargs):
+        """Update the idea details."""
+        idea = self.get_object()
+        if isinstance(idea, Response):
+            return idea  # Return error response if get_object() fails
+
+        with transaction.atomic():
+            serializer = self.get_serializer(idea, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+
+        return Response({"message": "Idea updated successfully!"}, status=status.HTTP_200_OK)
+
+# ----------------------------------------------------------------------------------------
+class IdeaResetAPIView(APIView):
+    
+    permission_classes = [IsAuthenticated]
+    def delete(self, request, *args, **kwargs):
+        user = request.user
+        idea_index = request.data.get("idea_id")  # User provides 1, 2, or 3
+        print(request.data)
+        print(idea_index)
+
+        if idea_index not in [1, 2, 3]:
+            return Response({"error": "Invalid idea_id. Must be 1, 2, or 3."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find the user's group
+        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+
+        if not group:
+            return Response({"error": "You are not part of any group."}, status=status.HTTP_403_FORBIDDEN)
+
+        if group.is_freeze:
+            return Response({"error": "Group formation is frozen. Idea reset is not allowed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Determine the actual idea ID stored in GroupFormation based on the provided idea_index
+        idea_to_delete = None
+
+        if idea_index == 1 and group.idea_1:
+            idea_to_delete = group.idea_1
+            group.idea_1 = None
+        elif idea_index == 2 and group.idea_2:
+            idea_to_delete = group.idea_2
+            group.idea_2 = None
+        elif idea_index == 3 and group.idea_3:
+            idea_to_delete = group.idea_3
+            group.idea_3 = None
+        else:
+            return Response({"error": "Idea not found in the specified slot."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Safely update the database
+        with transaction.atomic():
+            group.save()  # Remove reference to idea in GroupFormation
+            idea_to_delete.delete()  # Delete idea from Idea table
+            
+        return Response({"message": "Idea reset successfully!"}, status=status.HTTP_200_OK)
 # ----------------------------------------------------------------------------------------
 class StudentGroupDetailsAPIView(RetrieveAPIView):
     permission_classes = [IsAuthenticated]

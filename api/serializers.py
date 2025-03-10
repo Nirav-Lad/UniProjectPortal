@@ -161,18 +161,18 @@ class IdeaSubmissionSerializer(serializers.ModelSerializer):
                   'key_activities', 'data_sources', 'technology_usage', 'scalability',
                   'social_impact', 'potent_users']
 
-    def validate(self, data):
-        user = self.context['request'].user
-        group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
+    # def validate(self, data):
+    #     user = self.context['request'].user
+    #     group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
 
-        if not group:
-            raise serializers.ValidationError("You are not part of any group.")
+    #     if not group:
+    #         raise serializers.ValidationError("You are not part of any group.")
 
-        existing_ideas_count = sum(1 for idea in [group.idea_1, group.idea_2, group.idea_3] if idea is not None)
-        if existing_ideas_count >= 3:
-            raise serializers.ValidationError("Your group has already submitted 3 ideas. No more ideas can be submitted.")
+    #     existing_ideas_count = sum(1 for idea in [group.idea_1, group.idea_2, group.idea_3] if idea is not None)
+    #     if existing_ideas_count >= 3:
+    #         raise serializers.ValidationError("Your group has already submitted 3 ideas. No more ideas can be submitted.")
 
-        return data
+    #     return data
 
     def create(self, validated_data):
         return Idea.objects.create(**validated_data) 
