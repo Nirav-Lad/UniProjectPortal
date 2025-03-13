@@ -2,7 +2,7 @@ import datetime
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, Idea
+from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, Idea,StudentBatch
 from django.contrib.auth.hashers import make_password
 
 
@@ -124,35 +124,45 @@ class StudentDetailsRoleBasedSerializer(serializers.ModelSerializer):
 # --------------------------------------------------------------
 class GroupSerializer(serializers.ModelSerializer):
     members = serializers.SerializerMethodField()
-    member_count = serializers.SerializerMethodField()
-    vacancies = serializers.SerializerMethodField()
     ideas = serializers.SerializerMethodField()
-    finalized_idea = serializers.StringRelatedField()
+    finalized_idea = serializers.SerializerMethodField()
+    batch_name = serializers.SerializerMethodField()
 
     class Meta:
         model = GroupFormation
-        fields = ["id", "status", "is_freeze", "finalized_idea", "members", "member_count", "vacancies", "ideas"]
+        fields = [
+            "id", "status", "is_freeze", "finalized_idea", "members", "ideas", "batch_name"
+        ]
 
     def get_members(self, obj):
-        students = GroupStudents.objects.filter(group=obj).select_related("student_batch_link__enrollment")
+        students = GroupStudents.objects.filter(group=obj).select_related(
+            "student_batch_link__enrollment__user"
+        )
+
         return [
             {
                 "enrollment_id": student.student_batch_link.enrollment.enrollment_id,
                 "name": student.student_batch_link.enrollment.name,
+                "email": student.student_batch_link.enrollment.user.email,
+                "batch_name": student.student_batch_link.current_batch.batch_name
             }
             for student in students
         ]
 
-    def get_member_count(self, obj):
-        return GroupStudents.objects.filter(group=obj).count()
-
-    def get_vacancies(self, obj):
-        return 4 - self.get_member_count(obj)
-
     def get_ideas(self, obj):
         ideas = [obj.idea_1, obj.idea_2, obj.idea_3]
         return [{"id": idea.id, "title": idea.title} for idea in ideas if idea]
-  
+
+    def get_finalized_idea(self, obj):
+        if obj.finalized_idea:
+            return {"id": obj.finalized_idea.id, "title": obj.finalized_idea.title}
+        return None
+
+    def get_batch_name(self, obj):
+        # Fetch batch name from one of the group members
+        student = obj.group_students.first()
+        return student.student_batch_link.current_batch.batch_name if student else None
+      
 # --------------------------------------------------------------
 class IdeaSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -160,19 +170,6 @@ class IdeaSubmissionSerializer(serializers.ModelSerializer):
         fields = ['title', 'broad_area', 'objective', 'originality_innovativeness', 
                   'key_activities', 'data_sources', 'technology_usage', 'scalability',
                   'social_impact', 'potent_users']
-
-    # def validate(self, data):
-    #     user = self.context['request'].user
-    #     group = GroupFormation.objects.filter(group_students__student_batch_link__enrollment__user=user).first()
-
-    #     if not group:
-    #         raise serializers.ValidationError("You are not part of any group.")
-
-    #     existing_ideas_count = sum(1 for idea in [group.idea_1, group.idea_2, group.idea_3] if idea is not None)
-    #     if existing_ideas_count >= 3:
-    #         raise serializers.ValidationError("Your group has already submitted 3 ideas. No more ideas can be submitted.")
-
-    #     return data
 
     def create(self, validated_data):
         return Idea.objects.create(**validated_data) 

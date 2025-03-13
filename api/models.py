@@ -143,7 +143,7 @@ class StudentBatch(models.Model):
 
 class StudentDetails(models.Model):
     enrollment_id = models.IntegerField(primary_key=True)  
-    user = models.OneToOneField(  # ✅ New ForeignKey to UserMaster
+    user = models.OneToOneField(  # New ForeignKey to UserMaster
         'UserMaster', 
         on_delete=models.CASCADE, 
         null=True, 
@@ -188,7 +188,7 @@ class UserManager(BaseUserManager):
 
 class UserMaster(AbstractBaseUser, PermissionsMixin):
     id = models.AutoField(primary_key=True)
-    enrollment_id = models.IntegerField(unique=True, null=True, blank=True)  # ✅ New field for Student Enrollment ID
+    enrollment_id = models.IntegerField(unique=True, null=True, blank=True)  # New field for Student Enrollment ID
     USER_TYPE_CHOICES = [
         ('Admin', 'Admin'),
         ('Student', 'Student'),

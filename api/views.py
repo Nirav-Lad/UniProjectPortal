@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.generics import (ListCreateAPIView,UpdateAPIView,ListAPIView,RetrieveAPIView,
-                                     CreateAPIView,DestroyAPIView)
+                                     CreateAPIView)
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import (
@@ -10,12 +10,12 @@ from .serializers import (
 from rest_framework.permissions import IsAuthenticated
 # New imports
 import pandas as pd, random
-from .models import UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,Idea
+from .models import (UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,
+                     Idea)
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count
 from rest_framework_simplejwt.tokens import RefreshToken
 
 # -----------------------------------------------------------------------------------------
@@ -71,7 +71,7 @@ class BatchCreateView(ListCreateAPIView):
 # -----------------------------------------------------------------------------------------
 # Student upload api via excel sheet and pandas to break it
 class StudentUploadView(APIView):
-    permission_classes = [IsAuthenticated]  # ✅ Ensure only logged-in users (Admins) can access
+    permission_classes = [IsAuthenticated]  # Ensure only logged-in users (Admins) can access
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -79,20 +79,20 @@ class StudentUploadView(APIView):
             return Response({'error': 'No file uploaded.'}, status=400)
 
         try:
-            data = pd.read_excel(file, engine='openpyxl')  # ✅ Load Excel file
+            data = pd.read_excel(file, engine='openpyxl')  # Load Excel file
         except Exception as e:
             return Response({'error': 'Invalid file format.'}, status=400)
 
-        batch_name = request.data.get('batch_name')  # ✅ Get batch name instead of batch_id
+        batch_name = request.data.get('batch_name')  # Get batch name instead of batch_id
         if not batch_name:
             return Response({'error': 'Batch name is required.'}, status=400)
 
         try:
-            batch = Batch.objects.get(batch_name=batch_name)  # ✅ Fetch batch using batch_name
+            batch = Batch.objects.get(batch_name=batch_name)  # Fetch batch using batch_name
         except Batch.DoesNotExist:
             return Response({'error': f'Batch with name "{batch_name}" not found.'}, status=400)
 
-        created_by_user = request.user if request.user.is_authenticated else None  # ✅ Get admin who is uploading
+        created_by_user = request.user if request.user.is_authenticated else None  # Get admin who is uploading
 
         errors = []
         for row in data.to_dict('records'):
@@ -118,29 +118,29 @@ class StudentUploadView(APIView):
                 errors.append(f"Email {email} is already registered.")
                 continue
 
-            otp = ''.join(random.choices('0123456789', k=6))  # ✅ Generate OTP
+            otp = ''.join(random.choices('0123456789', k=6))  # Generate OTP
 
             try:
                 with transaction.atomic():
-                    # ✅ Create UserMaster with `created_by`
+                    # Create UserMaster with `created_by`
                     user = UserMaster.objects.create(
                         email=email,
                         otp=otp,
                         usertype='Student',
                         status='Active',
-                        enrollment_id=enrollment_id,  # ✅ Link enrollment ID to UserMaster
-                        created_by=created_by_user  # ✅ Assign created_by
+                        enrollment_id=enrollment_id,  # Link enrollment ID to UserMaster
+                        created_by=created_by_user  # Assign created_by
                     )
 
-                    # ✅ Create StudentDetails and link to UserMaster
+                    # Create StudentDetails and link to UserMaster
                     student_details = StudentDetails.objects.create(
                         enrollment_id=enrollment_id,
                         name=name,
                         batch=batch,
-                        user=user  # ✅ Ensure StudentDetails is linked to UserMaster
+                        user=user  # Ensure StudentDetails is linked to UserMaster
                     )
 
-                    # ✅ Create StudentBatch entry
+                    # Create StudentBatch entry
                     StudentBatch.objects.create(
                         enrollment=student_details,
                         current_batch=batch,
@@ -150,7 +150,7 @@ class StudentUploadView(APIView):
                 errors.append(f"Failed to create user {email}: {str(e)}")
                 continue
 
-            # ✅ Send email with OTP
+            # Send email with OTP
             try:
                 send_mail(
                     'Registration Successful',
@@ -309,16 +309,16 @@ class GetStudentProfileAPIView(RetrieveAPIView):
             raise Exception("Student profile not found.")
 # ------------------------------------------------------------------------------------------
 # # ----------------------------------------------------------------------------------------
-# class FreezeGroupFormationAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
+class FreezeGroupFormationAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
-#     def post(self, request):
-#         if request.user.usertype != "Admin":
-#             return Response({"error": "You do not have permission to perform this action."}, status=status.HTTP_403_FORBIDDEN)
+    def post(self, request):
+        if request.user.usertype != "Admin":
+            return Response({"error": "You do not have permission to perform this action."}, status=status.HTTP_403_FORBIDDEN)
 
-#         GroupFormation.objects.update(is_freeze=True)
+        GroupFormation.objects.update(is_freeze=True)
 
-#         return Response({"message": "Group formation has been frozen. No further changes allowed."}, status=status.HTTP_200_OK)
+        return Response({"message": "Group formation has been frozen. No further changes allowed."}, status=status.HTTP_200_OK)
 
 # ----------------------------------------------------------------------------------------
 # This code is first tested then only 
@@ -612,11 +612,36 @@ class AdminGroupOverviewAPIView(ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-
+    
         if user.usertype != "Admin":
-            raise Exception("Only admins can access this.")
+            raise ValidationError("Only admins can access this.")
 
-        return GroupFormation.objects.all()
+        batch_name = self.kwargs.get("batch_name")
+        if not batch_name:
+            raise ValidationError("Batch name is required.")
+
+        # Step 1: Get the batch
+        batch = Batch.objects.get(batch_name=batch_name)
+
+        # Step 2: Get students in this batch
+        student_batches = StudentBatch.objects.filter(current_batch=batch)
+
+        # Step 3: Find groups associated with these students
+        groups = GroupFormation.objects.filter(
+            group_students__student_batch_link__in=student_batches
+        ).distinct()
+
+        return groups
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Return groups as a dictionary with group ID as keys
+        response_data = {str(group["id"]): group for group in serializer.data}
+
+        return Response(response_data)
+    
 # ----------------------------------------------------------------------------------------
 class SetupStudentAPIView(APIView):
     permission_classes = [IsAuthenticated]
