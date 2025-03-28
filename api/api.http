@@ -6,7 +6,14 @@ content-type: application/json
     "refresh":""
 }
 
+### Logout for any user
+POST http://127.0.0.1:8000/logout/ HTTP/1/1
+Authorization: Bearer 
+Content-Type: application/json
 
+{
+    "refresh_token":""
+}
 ### Admin user login and password
 POST http://127.0.0.1:8000/login/ HTTP/1/1
 content-type: application/json
@@ -14,6 +21,15 @@ content-type: application/json
 {
     "email":"nirav20267@gmail.com",
     "password":"admin"
+}
+
+### Admin user login and password - for test admin
+POST http://127.0.0.1:8000/login/ HTTP/1/1
+content-type: application/json
+
+{
+    "email":"testadmin@example.com",
+    "password":"test"
 }
 
 ### Admin to fetch all the batches existing
@@ -72,7 +88,7 @@ Authorization: Bearer
 ### Admin - Request to see the students in particualr batches 
 GET http://127.0.0.1:8000/batches/Major Project 2028/students/ HTTP/1/1
 Content-Type: application/json
-Authorization: Bearer 
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQzMTg2NDE3LCJpYXQiOjE3NDMxODQ2MTcsImp0aSI6Ijg4MGRmYWEzNjliODQzYTRiODA0MTVlM2RhYzQzOGRiIiwidXNlcl9pZCI6NH0.gdoDjkVqtEY8OC3-qsKEp5_gew0aBxab3bVZ8ExwOAs
 
 ### Student - To get student profile details just via login
 GET http://127.0.0.1:8000/students/profile/ HTTP/1/1
@@ -175,6 +191,11 @@ Authorization: Bearer
 {
     "idea_id":1
 }
+
+### Admin view for getting student details
+GET http://127.0.0.1:8000/students/list/ HTTP/1/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQzMTg5NzA3LCJpYXQiOjE3NDMxODc5MDcsImp0aSI6Ijc2YTY3MmFjZmI4NjRjNWI4MWQ0MDVhN2YzMzY4Y2UzIiwidXNlcl9pZCI6NH0.Z8KgRoXLIAjZO2Ef2HQNBxvAICJhPnUuTtskO9S_xwA
+Content-Type: application/json
 
 
 

@@ -1,11 +1,11 @@
 from django.urls import path
 from . import views
-from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
     # General
     path('login/', views.LoginAPIView.as_view(), name='login'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('token/refresh/', views.CustomTokenRefreshView.as_view(), name='token-refresh'),
+    path('logout/',views.LogoutAPIView.as_view(),name='logout'),
 
     # Stage 1
     # [Admin]--
@@ -16,6 +16,7 @@ urlpatterns = [
     path('groups/freeze/', views.FreezeGroupFormationAPIView.as_view(), name='freeze-groups'),
     path('batches/<str:batch_name>/students/', views.GetStudentsInBatchAPIView.as_view(), name='students-in-batch'),
     path('students/<int:enrollment_id>/', views.GetSingleStudentAPIView.as_view(), name='student-detail'),
+    path('students/list/',views.AdminStudentListView.as_view(),name='list-students'),
     # [Student]--
     path('setup-student/', views.SetupStudentAPIView.as_view(), name='setup-student'),
     path('get-enrollids/', views.BatchEnrollmentIDsAPIView.as_view(), name='enrollmentids-students'),

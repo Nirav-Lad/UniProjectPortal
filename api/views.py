@@ -7,18 +7,29 @@ from .serializers import (
     UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
     StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer,
     IdeaSubmissionSerializer)
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,AllowAny
 # New imports
 import pandas as pd, random
 from .models import (UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,
-                     Idea)
+                     Idea,TokenTracking)
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
+from django.utils.timezone import now
 
 # -----------------------------------------------------------------------------------------
+from datetime import datetime
+from django.utils.timezone import make_aware
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils.timezone import now
+from .models import TokenTracking  # Ensure this model exists and tracks user sessions
+
 class LoginAPIView(APIView):
     def post(self, request):
         serializer = UserLoginSerializer(data=request.data)
@@ -29,14 +40,62 @@ class LoginAPIView(APIView):
             enrollment_id = serializer.validated_data.get("enrollment_id")
             name = serializer.validated_data.get("name")
 
+            # Get client's IP address
+            # ip_address = request.META.get("REMOTE_ADDR")
+
+            # # Get all active sessions for the user
+            # active_sessions = TokenTracking.objects.filter(user=user, refresh_expires_at__gt=now())
+
+            # # ❌ DENY: Prevent multiple logins from the same IP
+            # if active_sessions.filter(ip_address=ip_address).exists():
+            #     return Response({"error": "You are already logged in from this IP address."}, 
+            #                     status=status.HTTP_403_FORBIDDEN)
+
+            # # Extract active refresh tokens and their IPs
+            # existing_tokens = {session.refresh_token: session.ip_address for session in active_sessions}
+            # provided_refresh_token = request.data.get("refresh")
+
+            # # ❌ DENY: If a refresh token is reused from a different IP
+            # if provided_refresh_token in existing_tokens and existing_tokens[provided_refresh_token] != ip_address:
+            #     # Logout and revoke all sessions for security
+            #     active_sessions.delete()
+            #     return Response({"error": "Suspicious activity detected. Logged out for security."}, 
+            #                     status=status.HTTP_403_FORBIDDEN)
+
+            # # ❌ DENY: If the user exceeds the allowed number of unique IPs (max 3)
+            # unique_ips = active_sessions.values_list("ip_address", flat=True).distinct()
+            # if len(unique_ips) >= 3:
+            #     return Response({"error": "You have reached the limit of 3 different login locations."}, 
+            #                     status=status.HTTP_403_FORBIDDEN)
+
+            # ✅ Generate new JWT tokens
             tokens = RefreshToken.for_user(user)
+            access_token = str(tokens.access_token)
+            refresh_token = str(tokens)
+
+            # Get token expiration times
+            # access_expires_at = make_aware(datetime.utcfromtimestamp(tokens.access_token.payload.get("exp")))
+            # refresh_expires_at = make_aware(datetime.utcfromtimestamp(tokens.payload.get("exp")))
+
+            # # ✅ Revoke all previous refresh tokens (prevents replay attacks)
+            # active_sessions.delete()
+
+            # # ✅ Store the new session in the database
+            # TokenTracking.objects.create(
+            #     user=user,
+            #     access_token=access_token,
+            #     refresh_token=refresh_token,
+            #     ip_address=ip_address,
+            #     access_expires_at=access_expires_at,
+            #     refresh_expires_at=refresh_expires_at
+            # )
 
             return Response({
                 "message": "Login successful" if not require_password_change else "OTP verified. Please set your password.",
                 "require_password_change": require_password_change,
                 "tokens": {
-                    "refresh": str(tokens),
-                    "access": str(tokens.access_token),
+                    "refresh": refresh_token,
+                    "access": access_token,
                 },
                 "user_details": {
                     "usertype": usertype,
@@ -48,7 +107,38 @@ class LoginAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # -----------------------------------------------------------------------------------------
+class LogoutAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Get the refresh token and client's IP address
+        refresh_token = request.data.get("refresh_token")
+        ip_address = request.META.get("REMOTE_ADDR")
+
+        if not refresh_token:
+            return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Retrieve the session entry
+            token_entry = TokenTracking.objects.get(refresh_token=refresh_token, user=request.user)
+
+            # ❌ Prevent logout if IP mismatch (potential stolen token)
+            if token_entry.ip_address != ip_address:
+                return Response({"error": "Suspicious activity detected. Cannot logout from a different IP."},
+                                status=status.HTTP_403_FORBIDDEN)
+
+            # ✅ Delete only the session associated with this token
+            token_entry.delete()
+
+            return Response({"message": "Logout successful."}, status=status.HTTP_200_OK)
+
+        except TokenTracking.DoesNotExist:
+            return Response({"error": "Session not found or already logged out."}, status=status.HTTP_404_NOT_FOUND)
+
+# -----------------------------------------------------------------------------------------
 # There exists no such api view for batch creation 
+from rest_framework.exceptions import ValidationError
+
 class BatchCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = BatchSerializer
@@ -59,6 +149,12 @@ class BatchCreateView(ListCreateAPIView):
     def perform_create(self, serializer):
         if self.request.user.usertype != 'Admin':
             raise Exception("You do not have permission to perform this action.")
+
+        # Check if a batch with the same name already exists
+        batch_name = serializer.validated_data.get('batch_name')
+        if Batch.objects.filter(batch_name=batch_name).exists():
+            raise ValidationError({"error": "Batch with this name already exists."})
+
         serializer.save(created_by=self.request.user)
 
     def create(self, request, *args, **kwargs):
@@ -67,6 +163,49 @@ class BatchCreateView(ListCreateAPIView):
             {"message": "Batch created successfully"},
             status=status.HTTP_201_CREATED
         )
+# -----------------------------------------------------------------------------------------
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get("refresh")
+        ip_address = request.META.get("REMOTE_ADDR")
+
+        if not refresh_token:
+            return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Retrieve session entry
+            token_entry = TokenTracking.objects.get(refresh_token=refresh_token)
+
+            # Prevent refresh if IP mismatch (security check)
+            if token_entry.ip_address != ip_address:
+                return Response({"error": "Suspicious activity detected. Cannot refresh token from a different IP."}, 
+                                status=status.HTTP_403_FORBIDDEN)
+
+            # Generate new tokens
+            new_tokens = RefreshToken(refresh_token)
+            new_access_token = str(new_tokens.access_token)
+            new_refresh_token = str(new_tokens)
+
+            # Update TokenTracking entry with new tokens
+            token_entry.access_token = new_access_token
+            token_entry.refresh_token = new_refresh_token
+
+            # Update expiration times
+            token_entry.access_expires_at = make_aware(datetime.utcfromtimestamp(new_tokens.access_token.payload.get("exp")))
+            token_entry.refresh_expires_at = make_aware(datetime.utcfromtimestamp(new_tokens.payload.get("exp")))
+
+            token_entry.save()
+
+            return Response({
+                "message": "Token refreshed successfully",
+                "tokens": {
+                    "access": new_access_token,
+                    "refresh": new_refresh_token
+                }
+            }, status=status.HTTP_200_OK)
+
+        except TokenTracking.DoesNotExist:
+            return Response({"error": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
 
 # -----------------------------------------------------------------------------------------
 # Student upload api via excel sheet and pandas to break it
@@ -674,4 +813,36 @@ class SetupStudentAPIView(APIView):
             return Response({"message": "Password set and details updated successfully."}, status=status.HTTP_200_OK)
 
         return Response(details_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# ----------------------------------------------------------------------------------------------
+# Admin view for student list and thei details
+class AdminStudentListView(APIView):
+    permission_classes = [IsAuthenticated]  # Only authenticated users can access
 
+    def get(self, request):
+        # Ensure only Admin users can access this
+        if request.user.usertype != 'Admin':  # Adjust based on your user model
+            return Response({"message": "You are not authorized to access this data."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Fetch students linked to this admin (if `created_by` exists)
+        students = StudentDetails.objects.filter(user__created_by=request.user)
+
+        # Manually structure the response data
+        student_data = []
+        for student in students:
+            # Get group information if the student is part of a group
+            group_student = GroupStudents.objects.filter(student_batch_link__enrollment=student).first()
+            group_id = group_student.group.id if group_student else None
+            group_status = "Joined" if group_student else "Pending"
+
+            student_data.append({
+                "enrollment_id": student.enrollment_id,
+                "email": student.user.email if student.user else None,  # Fetching email from UserMaster
+                "name": student.name,
+                "batch_name": student.batch.batch_name if student.batch else None,
+                "group_id": group_id,
+                "group_status": group_status,
+                "section": student.section,
+                "mobile_no": student.mobile_no
+            })
+
+        return Response({"students": student_data}, status=status.HTTP_200_OK)

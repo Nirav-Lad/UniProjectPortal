@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
+# Stage -1
 class Batch(models.Model):
     batch_id = models.AutoField(primary_key=True)
     batch_name = models.CharField(max_length=255, unique=True)
@@ -224,3 +225,21 @@ class UserMaster(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+    
+# Token traking table
+class TokenTracking(models.Model):
+    user = models.ForeignKey(UserMaster, on_delete=models.CASCADE, related_name="tokens")
+    access_token = models.CharField(max_length=1024)  # Safe for JWTs
+    refresh_token = models.CharField(max_length=1024)  # Safe for refresh tokens
+    ip_address = models.GenericIPAddressField()
+    access_expires_at = models.DateTimeField()
+    refresh_expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Token for {self.user.email}"
+    
+    class Meta:
+        db_table = 'token_tracking'
+
+
