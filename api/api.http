@@ -88,7 +88,7 @@ Authorization: Bearer
 ### Admin - Request to see the students in particualr batches 
 GET http://127.0.0.1:8000/batches/Major Project 2028/students/ HTTP/1/1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQzMTg2NDE3LCJpYXQiOjE3NDMxODQ2MTcsImp0aSI6Ijg4MGRmYWEzNjliODQzYTRiODA0MTVlM2RhYzQzOGRiIiwidXNlcl9pZCI6NH0.gdoDjkVqtEY8OC3-qsKEp5_gew0aBxab3bVZ8ExwOAs
+Authorization: Bearer 
 
 ### Student - To get student profile details just via login
 GET http://127.0.0.1:8000/students/profile/ HTTP/1/1
@@ -129,8 +129,13 @@ GET http://127.0.0.1:8000/groups/my-group/ HTTP/1/1
 Authorization: Bearer 
 
 ### Admin can view group-wise student details & submitted ideas
-GET http://127.0.0.1:8000/admin-view/groups/Major Project 2028/ HTTP/1/1
-Authorization: Bearer 
+POST  http://127.0.0.1:8000/admin-view/groups/ HTTP/1/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQzMjMzNjIxLCJpYXQiOjE3NDMyMzE4MjEsImp0aSI6IjhiMmM3ZDkyYzczZjRkY2Q5MTE2YTgxOWI5NGQ2OTQ0IiwidXNlcl9pZCI6NH0.iTx3PyJNjkIHdOfbpvMrBQPjFCRZPwhPczYep8p41ic
+Content-Type: application/json
+
+{
+    "batch_name":"Major Project 2028"
+}
 
 ### Student - Setting the password after first login and filling remaining details
 POST http://127.0.0.1:8000/setup-student/ HTTP/1/1

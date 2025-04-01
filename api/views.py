@@ -19,17 +19,10 @@ from django.db import transaction
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.utils.timezone import now
-
-# -----------------------------------------------------------------------------------------
 from datetime import datetime
 from django.utils.timezone import make_aware
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.utils.timezone import now
-from .models import TokenTracking  # Ensure this model exists and tracks user sessions
 
+# -----------------------------------------------------------------------------------------
 class LoginAPIView(APIView):
     def post(self, request):
         serializer = UserLoginSerializer(data=request.data)
@@ -41,32 +34,32 @@ class LoginAPIView(APIView):
             name = serializer.validated_data.get("name")
 
             # Get client's IP address
-            # ip_address = request.META.get("REMOTE_ADDR")
+            ip_address = request.META.get("REMOTE_ADDR")
 
-            # # Get all active sessions for the user
-            # active_sessions = TokenTracking.objects.filter(user=user, refresh_expires_at__gt=now())
+            # Get all active sessions for the user
+            active_sessions = TokenTracking.objects.filter(user=user, refresh_expires_at__gt=now())
 
-            # # ❌ DENY: Prevent multiple logins from the same IP
-            # if active_sessions.filter(ip_address=ip_address).exists():
-            #     return Response({"error": "You are already logged in from this IP address."}, 
-            #                     status=status.HTTP_403_FORBIDDEN)
+            # ❌ DENY: Prevent multiple logins from the same IP
+            if active_sessions.filter(ip_address=ip_address).exists():
+                return Response({"error": "You are already logged in from this IP address."}, 
+                                status=status.HTTP_403_FORBIDDEN)
 
-            # # Extract active refresh tokens and their IPs
-            # existing_tokens = {session.refresh_token: session.ip_address for session in active_sessions}
-            # provided_refresh_token = request.data.get("refresh")
+            # Extract active refresh tokens and their IPs
+            existing_tokens = {session.refresh_token: session.ip_address for session in active_sessions}
+            provided_refresh_token = request.data.get("refresh")
 
-            # # ❌ DENY: If a refresh token is reused from a different IP
-            # if provided_refresh_token in existing_tokens and existing_tokens[provided_refresh_token] != ip_address:
-            #     # Logout and revoke all sessions for security
-            #     active_sessions.delete()
-            #     return Response({"error": "Suspicious activity detected. Logged out for security."}, 
-            #                     status=status.HTTP_403_FORBIDDEN)
+            # ❌ DENY: If a refresh token is reused from a different IP
+            if provided_refresh_token in existing_tokens and existing_tokens[provided_refresh_token] != ip_address:
+                # Logout and revoke all sessions for security
+                active_sessions.delete()
+                return Response({"error": "Suspicious activity detected. Logged out for security."}, 
+                                status=status.HTTP_403_FORBIDDEN)
 
-            # # ❌ DENY: If the user exceeds the allowed number of unique IPs (max 3)
-            # unique_ips = active_sessions.values_list("ip_address", flat=True).distinct()
-            # if len(unique_ips) >= 3:
-            #     return Response({"error": "You have reached the limit of 3 different login locations."}, 
-            #                     status=status.HTTP_403_FORBIDDEN)
+            # ❌ DENY: If the user exceeds the allowed number of unique IPs (max 3)
+            unique_ips = active_sessions.values_list("ip_address", flat=True).distinct()
+            if len(unique_ips) >= 3:
+                return Response({"error": "You have reached the limit of 3 different login locations."}, 
+                                status=status.HTTP_403_FORBIDDEN)
 
             # ✅ Generate new JWT tokens
             tokens = RefreshToken.for_user(user)
@@ -74,21 +67,21 @@ class LoginAPIView(APIView):
             refresh_token = str(tokens)
 
             # Get token expiration times
-            # access_expires_at = make_aware(datetime.utcfromtimestamp(tokens.access_token.payload.get("exp")))
-            # refresh_expires_at = make_aware(datetime.utcfromtimestamp(tokens.payload.get("exp")))
+            access_expires_at = make_aware(datetime.utcfromtimestamp(tokens.access_token.payload.get("exp")))
+            refresh_expires_at = make_aware(datetime.utcfromtimestamp(tokens.payload.get("exp")))
 
-            # # ✅ Revoke all previous refresh tokens (prevents replay attacks)
-            # active_sessions.delete()
+            # ✅ Revoke all previous refresh tokens (prevents replay attacks)
+            active_sessions.delete()
 
-            # # ✅ Store the new session in the database
-            # TokenTracking.objects.create(
-            #     user=user,
-            #     access_token=access_token,
-            #     refresh_token=refresh_token,
-            #     ip_address=ip_address,
-            #     access_expires_at=access_expires_at,
-            #     refresh_expires_at=refresh_expires_at
-            # )
+            # ✅ Store the new session in the database
+            TokenTracking.objects.create(
+                user=user,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                ip_address=ip_address,
+                access_expires_at=access_expires_at,
+                refresh_expires_at=refresh_expires_at
+            )
 
             return Response({
                 "message": "Login successful" if not require_password_change else "OTP verified. Please set your password.",
@@ -112,57 +105,32 @@ class LogoutAPIView(APIView):
 
     def post(self, request):
         # Get the refresh token and client's IP address
-        refresh_token = request.data.get("refresh_token")
+        refresh_token = request.data.get("refresh_token","").strip()
         ip_address = request.META.get("REMOTE_ADDR")
+        print("Refresh_token",refresh_token)
+        print("IP address",ip_address)
 
         if not refresh_token:
+            print("1")
             return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             # Retrieve the session entry
             token_entry = TokenTracking.objects.get(refresh_token=refresh_token, user=request.user)
-
+            print("2")
             # ❌ Prevent logout if IP mismatch (potential stolen token)
             if token_entry.ip_address != ip_address:
                 return Response({"error": "Suspicious activity detected. Cannot logout from a different IP."},
                                 status=status.HTTP_403_FORBIDDEN)
-
+            print("3")
             # ✅ Delete only the session associated with this token
             token_entry.delete()
-
+            print("4")
             return Response({"message": "Logout successful."}, status=status.HTTP_200_OK)
 
         except TokenTracking.DoesNotExist:
+            print("5")
             return Response({"error": "Session not found or already logged out."}, status=status.HTTP_404_NOT_FOUND)
-
-# -----------------------------------------------------------------------------------------
-# There exists no such api view for batch creation 
-from rest_framework.exceptions import ValidationError
-
-class BatchCreateView(ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = BatchSerializer
-
-    def get_queryset(self):
-        return Batch.objects.filter(created_by=self.request.user)
-
-    def perform_create(self, serializer):
-        if self.request.user.usertype != 'Admin':
-            raise Exception("You do not have permission to perform this action.")
-
-        # Check if a batch with the same name already exists
-        batch_name = serializer.validated_data.get('batch_name')
-        if Batch.objects.filter(batch_name=batch_name).exists():
-            raise ValidationError({"error": "Batch with this name already exists."})
-
-        serializer.save(created_by=self.request.user)
-
-    def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        return Response(
-            {"message": "Batch created successfully"},
-            status=status.HTTP_201_CREATED
-        )
 # -----------------------------------------------------------------------------------------
 class CustomTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
@@ -206,6 +174,32 @@ class CustomTokenRefreshView(TokenRefreshView):
 
         except TokenTracking.DoesNotExist:
             return Response({"error": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
+# -----------------------------------------------------------------------------------------
+# There exists no such api view for batch creation 
+class BatchCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = BatchSerializer
+
+    def get_queryset(self):
+        return Batch.objects.filter(created_by=self.request.user)
+
+    def perform_create(self, serializer):
+        if self.request.user.usertype != 'Admin':
+            raise Exception("You do not have permission to perform this action.")
+
+        # Check if a batch with the same name already exists
+        batch_name = serializer.validated_data.get('batch_name')
+        if Batch.objects.filter(batch_name=batch_name).exists():
+            raise Exception({"error": "Batch with this name already exists."})
+
+        serializer.save(created_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        return Response(
+            {"message": "Batch created successfully"},
+            status=status.HTTP_201_CREATED
+        )
 
 # -----------------------------------------------------------------------------------------
 # Student upload api via excel sheet and pandas to break it
@@ -543,7 +537,7 @@ class RegisterGroupAPIView(APIView):
 
         # Create the new group
         with transaction.atomic():
-            new_group = GroupFormation.objects.create(status="Pending")
+            new_group = GroupFormation.objects.create(status="Active")
             # Add the registering student
             GroupStudents.objects.create(group=new_group, student_batch_link=student_batch)
             # Add the selected students
@@ -552,7 +546,6 @@ class RegisterGroupAPIView(APIView):
 
         return Response({"message": f"Group registered successfully.","group_id":{new_group.id}}, status=status.HTTP_201_CREATED)
 
-# -------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
 class IdeaSubmissionAPIView(CreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -657,6 +650,9 @@ class UpdateIdeaAPIView(UpdateAPIView):
         if not group:
             return Response({"error": "You are not part of any group."}, status=status.HTTP_403_FORBIDDEN)
 
+        if group.is_freeze:
+            return Response({"error": "Group formation is frozen. Idea updation is not allowed."}, status=status.HTTP_400_BAD_REQUEST)
+
         # Ensure request contains `idea_id`
         idea_number = self.request.data.get("idea_id")
         if idea_number not in [1, 2, 3]:
@@ -745,41 +741,47 @@ class StudentGroupDetailsAPIView(RetrieveAPIView):
         return group
     
 # ----------------------------------------------------------------------------------------
-class AdminGroupOverviewAPIView(ListAPIView):
+class AdminGroupOverviewAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = GroupSerializer
+    serializer_class = GroupSerializer  # Define the serializer class
 
     def get_queryset(self):
         user = self.request.user
-    
+
         if user.usertype != "Admin":
             raise ValidationError("Only admins can access this.")
 
-        batch_name = self.kwargs.get("batch_name")
+        batch_name = self.request.data.get("batch_name")
         if not batch_name:
             raise ValidationError("Batch name is required.")
 
-        # Step 1: Get the batch
-        batch = Batch.objects.get(batch_name=batch_name)
+        try:
+            # Step 1: Get the batch
+            batch = Batch.objects.get(batch_name=batch_name)
 
-        # Step 2: Get students in this batch
-        student_batches = StudentBatch.objects.filter(current_batch=batch)
+            # Step 2: Get students in this batch
+            student_batches = StudentBatch.objects.filter(current_batch=batch)
 
-        # Step 3: Find groups associated with these students
-        groups = GroupFormation.objects.filter(
-            group_students__student_batch_link__in=student_batches
-        ).distinct()
+            # Step 3: Find groups associated with these students
+            groups = GroupFormation.objects.filter(
+                group_students__student_batch_link__in=student_batches
+            ).distinct()
 
-        return groups
+            return groups
 
-    def list(self, request, *args, **kwargs):
+        except Batch.DoesNotExist:
+            raise ValidationError("Batch not found.")
+
+    def post(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        
-        # Return groups as a dictionary with group ID as keys
+
+        # ✅ Corrected: Manually create the serializer instance
+        serializer = self.serializer_class(queryset, many=True)
+
+        # ✅ Corrected: Convert serializer data into a dictionary
         response_data = {str(group["id"]): group for group in serializer.data}
 
-        return Response(response_data)
+        return Response(response_data, status=status.HTTP_200_OK)
     
 # ----------------------------------------------------------------------------------------
 class SetupStudentAPIView(APIView):

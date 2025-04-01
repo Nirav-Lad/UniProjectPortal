@@ -27,9 +27,8 @@ class GroupFormation(models.Model):
     id = models.AutoField(primary_key=True) 
     is_freeze = models.BooleanField(default=False) 
     STATUS_CHOICES = [
-        ('Pending', 'Pending'),
-        ('Approved', 'Approved'),
-        ('Rejected', 'Rejected'),
+        ('Active', 'Active'),
+        ('Inactive', 'Inactive'),
     ]
     status = models.CharField(
         max_length=9,
