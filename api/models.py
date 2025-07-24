@@ -192,7 +192,7 @@ class UserMaster(AbstractBaseUser, PermissionsMixin):
     USER_TYPE_CHOICES = [
         ('Admin', 'Admin'),
         ('Student', 'Student'),
-        ('Mentor', 'Mentor'),
+        ('Guide', 'Guide'),
     ]
     usertype = models.CharField(
         max_length=20,
@@ -240,5 +240,110 @@ class TokenTracking(models.Model):
     
     class Meta:
         db_table = 'token_tracking'
+
+# ----------------------------------------------------------------------------------------
+
+# Models for stage 2 - Guide registration and group allocation and idea finalization
+
+# ----------------------------------------------------------------------------------------
+class Guide(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.OneToOneField(
+        UserMaster,
+        on_delete=models.CASCADE,
+        related_name='guide_profile',
+        limit_choices_to={'usertype': 'Guide'}
+    )
+    name = models.CharField(max_length=255)  # redundant but safe if later name != user.name
+    status = models.CharField(max_length=20)
+    is_frozen = models.BooleanField(default=False)  # freeze after submitting preferences
+
+    class Meta:
+        db_table = 'guide'
+
+    def __str__(self):
+        return self.name
+
+
+class Expertise(models.Model):
+    id = models.AutoField(primary_key=True)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'expertise'
+        verbose_name_plural = 'Expertise'
+
+    def __str__(self):
+        return self.title
+
+
+class GuideExpertise(models.Model):
+    id = models.AutoField(primary_key=True)
+    guide = models.ForeignKey(
+        Guide,
+        on_delete=models.CASCADE,
+        related_name='expertise_links'
+    )
+    expertise = models.ForeignKey(
+        Expertise,
+        on_delete=models.CASCADE,
+        related_name='guide_links'
+    )
+
+    class Meta:
+        db_table = 'guide_expertise'
+        unique_together = ('guide', 'expertise')
+        verbose_name_plural = 'Guide Expertise'
+
+    def __str__(self):
+        return f"{self.guide.name} - {self.expertise.title}"
+
+
+class GuideProjectInterest(models.Model):
+    id = models.AutoField(primary_key=True)
+    guide = models.ForeignKey(
+        Guide,
+        on_delete=models.CASCADE,
+        related_name='project_interests'
+    )
+    group = models.ForeignKey(
+        GroupFormation,
+        on_delete=models.CASCADE,
+        related_name='interested_guides'
+    )
+    priority = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = 'guide_project_interest'
+        unique_together = ('guide', 'group')
+        ordering = ['priority']
+
+    def __str__(self):
+        return f"{self.guide.name} -> Group {self.group.id} (Priority {self.priority})"
+
+
+class GuideGroup(models.Model):
+    id = models.AutoField(primary_key=True)
+    guide = models.ForeignKey(
+        Guide,
+        on_delete=models.CASCADE,
+        related_name='assigned_groups'
+    )
+    group = models.ForeignKey(
+        GroupFormation,
+        on_delete=models.CASCADE,
+        related_name='assigned_guides'
+    )
+    assigned_on = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'guide_group'
+        unique_together = ('guide', 'group')
+
+    def __str__(self):
+        return f"Guide {self.guide.name} assigned to Group {self.group.id}"
+
+
 
 
