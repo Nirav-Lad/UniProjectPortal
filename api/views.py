@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated,AllowAny
 # New imports
 import pandas as pd, random
 from .models import (UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,
-                     Idea,TokenTracking)
+                     Idea,TokenTracking,Guide)
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -848,3 +848,68 @@ class AdminStudentListView(APIView):
             })
 
         return Response({"students": student_data}, status=status.HTTP_200_OK)
+
+
+
+# Stage -2 
+
+# Single guide registration
+class RegisterSingleGuideAPIView(APIView):
+    permission_classes = [IsAuthenticated]  # Only Admin can register guides
+
+    def post(self, request):
+        email = request.data.get('email')
+        name = request.data.get('name')
+        status_value = request.data.get('status', 'Active')  # default Active
+
+        if not email or not name:
+            return Response({'error': 'Email and name are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response({'error': 'Invalid email format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if UserMaster.objects.filter(email=email).exists():
+            return Response({'error': f'Email {email} is already registered.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        otp = ''.join(random.choices('0123456789', k=6))
+
+        try:
+            with transaction.atomic():
+                created_by_user = request.user if request.user.is_authenticated else None
+
+                # Create UserMaster for Guide
+                user = UserMaster.objects.create(
+                    email=email,
+                    otp=otp,
+                    usertype='Guide',
+                    status='Active',
+                    created_by=created_by_user
+                )
+
+                # Create Guide profile
+                guide = Guide.objects.create(
+                    user=user,
+                    name=name,
+                    status=status_value
+                )
+
+        except Exception as e:
+            return Response({'error': f'Failed to create guide: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Send OTP email
+        try:
+            send_mail(
+                'Guide Registration Successful',
+                f'Your OTP is: {otp}',
+                'admin@example.com',
+                [email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            return Response({'warning': f'Guide registered but failed to send OTP email: {str(e)}'},
+                            status=status.HTTP_207_MULTI_STATUS)
+
+        return Response({'message': 'Guide registered successfully.'}, status=status.HTTP_201_CREATED)
+    

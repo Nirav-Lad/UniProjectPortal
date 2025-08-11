@@ -29,6 +29,9 @@ urlpatterns = [
     path("groups/my-group/", views.StudentGroupDetailsAPIView.as_view(), name="student-group-details"),
     
     # Stage 2
-
+    # [Admin]--
+    path('guide/register/single/',views.RegisterSingleGuideAPIView.as_view(),name='register-guide-single'),
+    # [Guide]--
+    # [Student]--
     # Stage 3
     ]

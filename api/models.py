@@ -228,8 +228,8 @@ class UserMaster(AbstractBaseUser, PermissionsMixin):
 # Token traking table
 class TokenTracking(models.Model):
     user = models.ForeignKey(UserMaster, on_delete=models.CASCADE, related_name="tokens")
-    access_token = models.CharField(max_length=1024)  # Safe for JWTs
-    refresh_token = models.CharField(max_length=1024)  # Safe for refresh tokens
+    access_token = models.CharField(max_length=1024)  
+    refresh_token = models.CharField(max_length=1024)  
     ip_address = models.GenericIPAddressField()
     access_expires_at = models.DateTimeField()
     refresh_expires_at = models.DateTimeField()
