@@ -2,9 +2,11 @@ import datetime
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, Idea,StudentBatch
+from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, Idea, Guide, StudentBatch
 from django.contrib.auth.hashers import make_password
-
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+import random
 
 class UserLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -73,6 +75,86 @@ class SetPasswordSerializer(serializers.Serializer):
         user.last_login = datetime.datetime.now()
         user.save()
         return user
+# ------------------------------------------------------------
+class RegisterUserSerializer(serializers.Serializer):
+    # common
+    email=serializers.EmailField()
+    name=serializers.CharField()
+    usertype=serializers.ChoiceField(choices=['External','Student','Guide'])
+
+    # Student Only 
+    enrollment_id=serializers.IntegerField(required=False,allow_null=True)
+    batch_name=serializers.CharField(required=False,allow_blank=True)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        usertype = attrs.get('usertype')
+        enrollment_id = attrs.get('enrollment_id')
+        batch_name = attrs.get('batch_name')
+
+        if UserMaster.objects.filter(email=email).exists():
+            raise serializers.ValidationError({'email':f'Email {email} is already registered.'})
+
+        if usertype=='Student':
+            if enrollment_id is None:
+                raise serializers.ValidationError({'enrollment_id':f'Enrollment id is required for student.'})
+            if not batch_name:
+                raise serializers.ValidationError({'batch_name':f'Batch name is required for student.'})
+            if StudentDetails.objects.filter(enrollment_id=enrollment_id).exists():
+                    raise serializers.ValidationError({'enrollment_id': f'Enrollment ID {enrollment_id} already exists.'})
+            try:
+                Batch.objects.get(batch_name=batch_name)
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError({'batch_name': 'Invalid batch name.'})
+
+        return attrs
+    
+    @transaction.atomic
+    def create(self, validated_data):
+        created_by_user = self.context['request'].user
+        email = validated_data['email']
+        name = validated_data['name']
+        usertype = validated_data['usertype']
+
+        otp = ''.join(random.choices('0123456789', k=6))
+
+        # Create base user
+        user = UserMaster.objects.create(
+            email=email,
+            otp=otp,
+            usertype=usertype,
+            status='Active',
+            enrollment_id=validated_data.get('enrollment_id') if usertype == 'Student' else None,
+            created_by=created_by_user
+        )
+
+        if usertype=='Student':
+            batch = Batch.objects.get(batch_name=validated_data['batch_name'])
+
+            # Student details table
+            student_details = StudentDetails.objects.create(
+                enrollment_id=validated_data['enrollment_id'],
+                name=name,
+                batch=batch,
+                user=user
+            )
+
+            # Student Batch update details
+            StudentBatch.objects.create(
+                enrollment=student_details,
+                current_batch=batch,
+                status='Active'
+            )
+
+        elif usertype == 'Guide':
+            Guide.objects.create(
+                user=user,
+                name=name,
+                status=validated_data.get('status', 'Active')
+            )
+
+        return user
+    
 # ------------------------------------------------------------
 class BatchSerializer(serializers.ModelSerializer):
     class Meta:
@@ -181,3 +263,10 @@ class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentDetails
         fields = ['name', 'email', 'enrollement_id', 'batch_name']
+
+# Stage - 2
+
+class GuideSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Guide
+        fields=['mobile_no']

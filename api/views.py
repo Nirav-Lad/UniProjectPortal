@@ -6,8 +6,9 @@ from rest_framework import status
 from .serializers import (
     UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
     StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer,
-    IdeaSubmissionSerializer)
-from rest_framework.permissions import IsAuthenticated,AllowAny
+    IdeaSubmissionSerializer,GuideSerializer,RegisterUserSerializer)
+from .utils.permissions import IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 # New imports
 import pandas as pd, random
 from .models import (UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,
@@ -22,6 +23,7 @@ from django.utils.timezone import now
 from datetime import datetime
 from django.utils.timezone import make_aware
 
+# Common APIs accross whole app
 # -----------------------------------------------------------------------------------------
 class LoginAPIView(APIView):
     def post(self, request):
@@ -174,7 +176,42 @@ class CustomTokenRefreshView(TokenRefreshView):
 
         except TokenTracking.DoesNotExist:
             return Response({"error": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
+
+class RegisterUserAPIView(APIView):
+    permission_classes=[IsAdminUser]
+
+    def post(self,request):
+        serializer=RegisterUserSerializer(data=request.data,context={'request':request})
+
+        if not serializer.is_valid():
+            return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user=serializer.save()
+        except Exception as e:
+            return Response({'error':f'Failed to create user : {str(e)} '},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+        # Send OTP
+        try:
+            send_mail(
+                f'Registration successful at UniProject Portal as {user.usertype}',
+                f'Your OTP is : {user.otp} ',
+                'admin@example.com',
+                [user.email],
+                fail_silently=False
+            )
+        except Exception as e:
+            return Response(
+                {'Warning':f'User registered but failed to send OTP email : {str(e)}'},
+                 status=status.HTTP_207_MULTI_STATUS
+            )
+        
+        return Response({'message':f'{user.usertype} registered successfully.'},status=status.HTTP_201_CREATED)
+        
+
 # -----------------------------------------------------------------------------------------
+# Stage - 1 APIs
 # There exists no such api view for batch creation 
 class BatchCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -850,7 +887,6 @@ class AdminStudentListView(APIView):
         return Response({"students": student_data}, status=status.HTTP_200_OK)
 
 
-
 # Stage -2 
 
 # Single guide registration
@@ -913,3 +949,22 @@ class RegisterSingleGuideAPIView(APIView):
 
         return Response({'message': 'Guide registered successfully.'}, status=status.HTTP_201_CREATED)
     
+# Setting up the guide first login api view
+class GuideFirstLoginAPIView(APIView):
+    permission_classes=[IsAuthenticated]
+
+    def post(self,request):
+        user=request.user
+
+        # Check if password needs to be set
+        if user.last_login is None:
+            password_serializer = SetPasswordSerializer(data=request.data, context={"request": request})
+            if password_serializer.is_valid():
+                password_serializer.save()
+            else:
+                return Response(password_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        guide_serializer=GuideSerializer(Guide,data=request.data,)
+
+
+

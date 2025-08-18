@@ -254,9 +254,9 @@ class Guide(models.Model):
         related_name='guide_profile',
         limit_choices_to={'usertype': 'Guide'}
     )
-    name = models.CharField(max_length=255)  # redundant but safe if later name != user.name
+    name = models.CharField(max_length=255)  
     status = models.CharField(max_length=20)
-    is_frozen = models.BooleanField(default=False)  # freeze after submitting preferences
+    mobile_no = models.CharField(max_length=10, unique=True, null=True)
 
     class Meta:
         db_table = 'guide'

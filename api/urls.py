@@ -6,6 +6,7 @@ urlpatterns = [
     path('login/', views.LoginAPIView.as_view(), name='login'),
     path('token/refresh/', views.CustomTokenRefreshView.as_view(), name='token-refresh'),
     path('logout/',views.LogoutAPIView.as_view(),name='logout'),
+    path('user/register/',views.RegisterUserAPIView.as_view(),name='user-registration'),
 
     # Stage 1
     # [Admin]--

@@ -50,8 +50,8 @@ POST http://127.0.0.1:8000/login/ HTTP/1/1
 content-type: application/json
 
 {
-    "email":"niravkumar.r.lad@nuv.ac.in",
-    "password":"niravlad"
+    "email":"abhi.k.vaghasiya@nuv.ac.in",
+    "password":"abhivaghasiya"
 }
 
 ### Admin - creating single student registration
@@ -199,10 +199,36 @@ Authorization: Bearer
 
 ### Admin view for getting student details
 GET http://127.0.0.1:8000/students/list/ HTTP/1/1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ1NTU4NzEwLCJpYXQiOjE3NDU1NTY5MTAsImp0aSI6IjQ3YzllODVmZTJlMzRhNmRhNmY5ZTBhMGNkMmI0Yjg1IiwidXNlcl9pZCI6NX0.yH9evDibRxsxXWosnyMaZoO6MZ3YYKSNiJctfYfpmTU
+Authorization: Bearer 
 Content-Type: application/json
 
 
+#Cheking the user registration api for stuent user and guide user
+
+### Check for student user 
+POST http://127.0.0.1:8000/user/register/ HTTP/1/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU1NTI0NjE4LCJpYXQiOjE3NTU1MjEwMTgsImp0aSI6IjVlZWQxY2EwNDU0ZTQzNWM5NDcyOWRkNTk4NzJjZDM2IiwidXNlcl9pZCI6NH0.eVA4IZVvV3AnLt4zMEzAFru0h-VRixy4s-rk6ZIDqQY
+Content-Type: application/json
+
+{
+    "name":"Nirav Lad",
+    "email":"niravkumar.r.lad@nuv.ac.in",
+    "enrollment_id":"22000743",
+    "batch_name":"Major Project 2028",
+    "usertype":"Student"
+}
+
+
+### Check for guide user
+POST http://127.0.0.1:8000/user/register/ HTTP/1/1
+Authorization: Bearer 
+Content-Type: application/json
+
+{
+    "name":"Zels Sorathiya",
+    "email":"sorathiyazels873@gmail.com",
+    "usertype":"Guide"
+}
 
 
 
