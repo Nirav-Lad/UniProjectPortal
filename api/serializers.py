@@ -153,6 +153,7 @@ class RegisterUserSerializer(serializers.Serializer):
                 status=validated_data.get('status', 'Active')
             )
 
+        user.name_for_email=validated_data['name']
         return user
     
 # ------------------------------------------------------------

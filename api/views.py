@@ -9,6 +9,7 @@ from .serializers import (
     IdeaSubmissionSerializer,GuideSerializer,RegisterUserSerializer)
 from .utils.permissions import IsAdminUser
 from rest_framework.permissions import IsAuthenticated
+from api.utils.email_utils import send_registration_email
 # New imports
 import pandas as pd, random
 from .models import (UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,
@@ -192,23 +193,36 @@ class RegisterUserAPIView(APIView):
             return Response({'error':f'Failed to create user : {str(e)} '},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
-        # Send OTP
-        try:
-            send_mail(
-                f'Registration successful at UniProject Portal as {user.usertype}',
-                f'Your OTP is : {user.otp} ',
-                'admin@example.com',
-                [user.email],
-                fail_silently=False
-            )
-        except Exception as e:
+        # # Send OTP
+        # try:
+        #     send_mail(
+        #         f'Registration successful at UniProject Portal as {user.usertype}',
+        #         f'Your OTP is : {user.otp} ',
+        #         'admin@example.com',
+        #         [user.email],
+        #         fail_silently=False
+        #     )
+        # except Exception as e:
+        #     return Response(
+        #         {'Warning':f'User registered but failed to send OTP email : {str(e)}'},
+        #          status=status.HTTP_207_MULTI_STATUS
+        #     )
+        
+        # return Response({'message':f'{user.usertype} registered successfully.'},status=status.HTTP_201_CREATED)
+        
+        # Send registration email
+        email_sent = send_registration_email(user)
+
+        if email_sent:
             return Response(
-                {'Warning':f'User registered but failed to send OTP email : {str(e)}'},
-                 status=status.HTTP_207_MULTI_STATUS
+                {"message": "User registered and OTP email sent successfully"},
+                status=status.HTTP_201_CREATED
             )
-        
-        return Response({'message':f'{user.usertype} registered successfully.'},status=status.HTTP_201_CREATED)
-        
+        else:
+            return Response(
+                {"warning": "User registered but failed to send OTP email"},
+                status=status.HTTP_207_MULTI_STATUS
+            )
 
 # -----------------------------------------------------------------------------------------
 # Stage - 1 APIs

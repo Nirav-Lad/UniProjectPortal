@@ -1,0 +1,10 @@
+Hi {{ user.name_for_email }},
+
+Welcome to UniProject Portal 🎉
+
+You have successfully registered as a {{ user.usertype }}.
+
+Your OTP for account verification is: {{ user.otp }}
+
+Best regards,  
+Team UniProject Portal
