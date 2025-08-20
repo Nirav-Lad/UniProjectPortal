@@ -302,6 +302,10 @@ class GuideExpertise(models.Model):
 
 class GuideProjectInterest(models.Model):
     id = models.AutoField(primary_key=True)
+    class Priority(models.TextChoices):
+        P1 = "P1", "Priority 1"
+        P2 = "P2", "Priority 2"
+        P3 = "P3", "Priority 3"
     guide = models.ForeignKey(
         Guide,
         on_delete=models.CASCADE,
@@ -312,7 +316,10 @@ class GuideProjectInterest(models.Model):
         on_delete=models.CASCADE,
         related_name='interested_guides'
     )
-    priority = models.PositiveIntegerField()
+    priority = models.CharField(
+        max_length=2,
+        choices=Priority.choices
+    )
 
     class Meta:
         db_table = 'guide_project_interest'

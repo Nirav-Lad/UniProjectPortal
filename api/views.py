@@ -6,14 +6,14 @@ from rest_framework import status
 from .serializers import (
     UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
     StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer,
-    IdeaSubmissionSerializer,GuideSerializer,RegisterUserSerializer)
-from .utils.permissions import IsAdminUser
+    IdeaSubmissionSerializer,GuideSetupSerializer,RegisterUserSerializer,GuideProjectInterestSerializer)
+from .utils.permissions import IsAdminUser,IsGuideUser
 from rest_framework.permissions import IsAuthenticated
 from api.utils.email_utils import send_registration_email
 # New imports
 import pandas as pd, random
 from .models import (UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,
-                     Idea,TokenTracking,Guide)
+                     Idea,TokenTracking,Guide,GuideProjectInterest)
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -965,20 +965,52 @@ class RegisterSingleGuideAPIView(APIView):
     
 # Setting up the guide first login api view
 class GuideFirstLoginAPIView(APIView):
-    permission_classes=[IsAuthenticated]
+    permission_classes = [IsGuideUser]
 
-    def post(self,request):
-        user=request.user
+    def post(self, request):
+        user = request.user
 
-        # Check if password needs to be set
+        # Ensure this is a Guide
+        try:
+            guide = user.guide_profile
+        except Guide.DoesNotExist:
+            return Response({"error": "Guide record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # First login: set password if not already set
         if user.last_login is None:
             password_serializer = SetPasswordSerializer(data=request.data, context={"request": request})
             if password_serializer.is_valid():
                 password_serializer.save()
             else:
                 return Response(password_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
-        guide_serializer=GuideSerializer(Guide,data=request.data,)
 
+        # Check if guide details already updated
+        if guide.mobile_no and guide.expertise_links.exists():
+            return Response(
+                {"message": "Password set successfully. Details are already updated."},
+                status=status.HTTP_200_OK
+            )
 
+        # Update guide details (mobile + expertise)
+        details_serializer = GuideSetupSerializer(guide, data=request.data, partial=True)
+        if details_serializer.is_valid():
+            details_serializer.save()
+            return Response(
+                {"message": "Password set and details updated successfully."},
+                status=status.HTTP_200_OK
+            )
 
+        return Response(details_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class GuideProjectInterestAPIView(ListCreateAPIView):
+    permission_classes=[IsGuideUser]
+    serializer_class=[GuideProjectInterestSerializer]
+
+    def get_queryset(self):
+        return GuideProjectInterest.objects.filter(
+            guide=self.request.user.guide_profile
+        )
+    
+    def perform_create(self, serializer):
+        return serializer.save()
+    

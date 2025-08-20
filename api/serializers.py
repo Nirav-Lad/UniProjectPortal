@@ -2,7 +2,9 @@ import datetime
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, Idea, Guide, StudentBatch
+from .models import (Batch, UserMaster,StudentDetails,GroupFormation, GroupStudents, Idea, 
+                     StudentBatch,
+                     Guide,GuideExpertise,Expertise,GuideProjectInterest)
 from django.contrib.auth.hashers import make_password
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -25,7 +27,7 @@ class UserLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Account is disabled")
 
         # Detect First Login using `last_login`
-        if user.usertype == "Student" and user.last_login is None:
+        if user.usertype in ["Student", "Guide"] and user.last_login is None:
             if password == user.otp:
                 return {
                     "user": user,
@@ -267,7 +269,99 @@ class StudentSerializer(serializers.ModelSerializer):
 
 # Stage - 2
 
-class GuideSerializer(serializers.ModelSerializer):
+# class GuideSerializer(serializers.ModelSerializer):
+
+#     class Meta:
+#         model=Guide
+#         fields=['mobile_no']
+
+class GuideSetupSerializer(serializers.ModelSerializer):
+
+    expertise_names = serializers.ListField(
+        child=serializers.CharField(), write_only=True, required=False
+    )
+
     class Meta:
-        model=Guide
-        fields=['mobile_no']
+        model = Guide
+        fields = ['mobile_no', 'expertise_names']
+
+    def update(self, instance, validated_data):
+        expertise_names = validated_data.pop('expertise_names', [])
+
+        # Update mobile number
+        instance.mobile_no = validated_data.get('mobile_no', instance.mobile_no)
+        instance.save()
+
+        # Update expertise (reset then add new ones)
+        if expertise_names:
+            GuideExpertise.objects.filter(guide=instance).delete()
+            for name in expertise_names:
+                expertise_obj, _ = Expertise.objects.get_or_create(
+                    title=name.strip(),
+                    defaults={"description": ""}  # description optional
+                )
+                GuideExpertise.objects.create(guide=instance, expertise=expertise_obj)
+
+        return instance
+
+from rest_framework import serializers
+from .models import GuideProjectInterest
+
+class GuideProjectInterestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GuideProjectInterest
+        fields = ["id", "guide", "group", "priority"]
+        extra_kwargs = {
+            "guide": {"read_only": True}
+        }
+
+    def validate(self, data):
+        request = self.context["request"]
+        guide = request.user.guide_profile   # Guide linked to logged in user
+        group = data["group"]
+        priority = data["priority"]
+
+        # Each group belongs to a batch → fetch batch
+        batch = group.group_students.first().student_batch_link.current_batch
+        if not batch:
+            raise serializers.ValidationError("This group is not linked to a valid batch.")
+
+        # Prevent duplicate priority per guide per batch
+        if GuideProjectInterest.objects.filter(
+            guide=guide,
+            priority=priority,
+            group__group_students__student_batch_link__current_batch=batch
+        ).exists():
+            raise serializers.ValidationError(
+                f"You already assigned {priority} in this batch."
+            )
+
+        # Prevent same group assignment
+        if GuideProjectInterest.objects.filter(
+            guide=guide,
+            group=group
+        ).exists():
+            raise serializers.ValidationError(
+                f"You already assigned a priority to Group {group.id}."
+            )
+
+        # Enforce max 3 priorities per batch
+        current_count = GuideProjectInterest.objects.filter(
+            guide=guide,
+            group__group_students__student_batch_link__current_batch=batch
+        ).count()
+        if current_count >= 3:
+            raise serializers.ValidationError(
+                "You have already assigned 3 priorities for this batch."
+            )
+
+        return data
+
+    def create(self, validated_data):
+        validated_data["guide"] = self.context["request"].user.guide_profile
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        raise serializers.ValidationError("You cannot modify an already assigned priority.")
+
+

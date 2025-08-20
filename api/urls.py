@@ -33,6 +33,9 @@ urlpatterns = [
     # [Admin]--
     path('guide/register/single/',views.RegisterSingleGuideAPIView.as_view(),name='register-guide-single'),
     # [Guide]--
+    path('guide/firstlogin/',views.GuideFirstLoginAPIView.as_view(),name='guide-firstlogin'),
+    path('guide/priorities/'),
     # [Student]--
+
     # Stage 3
     ]
