@@ -304,64 +304,11 @@ class GuideSetupSerializer(serializers.ModelSerializer):
 
         return instance
 
-from rest_framework import serializers
-from .models import GuideProjectInterest
+class GuidePrioritySerializer(serializers.Serializer):
+    group = serializers.IntegerField()
+    priority = serializers.ChoiceField(choices=GuideProjectInterest.Priority.choices)
 
-class GuideProjectInterestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = GuideProjectInterest
-        fields = ["id", "guide", "group", "priority"]
-        extra_kwargs = {
-            "guide": {"read_only": True}
-        }
-
-    def validate(self, data):
-        request = self.context["request"]
-        guide = request.user.guide_profile   # Guide linked to logged in user
-        group = data["group"]
-        priority = data["priority"]
-
-        # Each group belongs to a batch → fetch batch
-        batch = group.group_students.first().student_batch_link.current_batch
-        if not batch:
-            raise serializers.ValidationError("This group is not linked to a valid batch.")
-
-        # Prevent duplicate priority per guide per batch
-        if GuideProjectInterest.objects.filter(
-            guide=guide,
-            priority=priority,
-            group__group_students__student_batch_link__current_batch=batch
-        ).exists():
-            raise serializers.ValidationError(
-                f"You already assigned {priority} in this batch."
-            )
-
-        # Prevent same group assignment
-        if GuideProjectInterest.objects.filter(
-            guide=guide,
-            group=group
-        ).exists():
-            raise serializers.ValidationError(
-                f"You already assigned a priority to Group {group.id}."
-            )
-
-        # Enforce max 3 priorities per batch
-        current_count = GuideProjectInterest.objects.filter(
-            guide=guide,
-            group__group_students__student_batch_link__current_batch=batch
-        ).count()
-        if current_count >= 3:
-            raise serializers.ValidationError(
-                "You have already assigned 3 priorities for this batch."
-            )
-
-        return data
-
-    def create(self, validated_data):
-        validated_data["guide"] = self.context["request"].user.guide_profile
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        raise serializers.ValidationError("You cannot modify an already assigned priority.")
-
-
+    def validate_group(self, value):
+        if not GroupFormation.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Invalid group ID")
+        return value

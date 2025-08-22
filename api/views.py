@@ -6,7 +6,7 @@ from rest_framework import status
 from .serializers import (
     UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
     StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer,
-    IdeaSubmissionSerializer,GuideSetupSerializer,RegisterUserSerializer,GuideProjectInterestSerializer)
+    IdeaSubmissionSerializer,GuideSetupSerializer,RegisterUserSerializer,GuidePrioritySerializer)
 from .utils.permissions import IsAdminUser,IsGuideUser
 from rest_framework.permissions import IsAuthenticated
 from api.utils.email_utils import send_registration_email
@@ -1002,15 +1002,75 @@ class GuideFirstLoginAPIView(APIView):
 
         return Response(details_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class GuideProjectInterestAPIView(ListCreateAPIView):
-    permission_classes=[IsGuideUser]
-    serializer_class=[GuideProjectInterestSerializer]
+class GuidePriorityAPIView(APIView):
+    permission_classes = [IsGuideUser]
+    serializer_class = GuidePrioritySerializer
 
-    def get_queryset(self):
-        return GuideProjectInterest.objects.filter(
-            guide=self.request.user.guide_profile
-        )
-    
-    def perform_create(self, serializer):
-        return serializer.save()
+    def post(self, request, *args, **kwargs):
+        guide = Guide.objects.get(user=request.user)
+
+        # Rule 1: Check if guide already submitted priorities
+        if GuideProjectInterest.objects.filter(guide=guide).exists():
+            return Response(
+                {"error": "Priorities already submitted. Updates not allowed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        priorities_data = request.data.get("priorities", [])
+        if not priorities_data:
+            return Response(
+                {"error": "Priorities list is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(priorities_data) != 2:
+            return Response(
+                {"error": "You must submit exactly 3 priorities (P1, P2, P3)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Rule 2: Validate each priority
+        serializer = GuidePrioritySerializer(data=priorities_data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        # Rule 3: Check for duplicates in request
+        groups = [item["group"] for item in serializer.validated_data]
+        priorities = [item["priority"] for item in serializer.validated_data]
+
+        if len(groups) != len(set(groups)):
+            return Response(
+                {"error": "Duplicate group IDs are not allowed"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if len(priorities) != len(set(priorities)):
+            return Response(
+                {"error": "Duplicate priority values are not allowed"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Rule 4: Save all-or-nothing
+        try:
+            with transaction.atomic():
+                objects = [
+                    GuideProjectInterest(
+                        guide=guide,
+                        group_id=item["group"],
+                        priority=item["priority"]
+                    )
+                    for item in serializer.validated_data
+                ]
+                GuideProjectInterest.objects.bulk_create(objects)
+
+            return Response(
+                {"message": "Priorities submitted successfully"},
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
     
