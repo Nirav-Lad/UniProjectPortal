@@ -134,7 +134,7 @@ Authorization: Bearer
 Content-Type: application/json
 
 {
-    "batch_name":"Major Project 2028"
+    "batch_name":"Minor Project 2025"
 }
 
 ### Student - Setting the password after first login and filling remaining details
