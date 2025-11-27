@@ -11,6 +11,7 @@ urlpatterns = [
     # Stage 1
     # [Admin]--
     path('batches/', stage1_views.BatchCreateView.as_view(), name='batch-create'),
+    path("batches/<str:batch_name>/", stage1_views.BatchDetailAPI.as_view(), name="batch-detail"),
     path('students/upload/', stage1_views.StudentUploadView.as_view(), name='student-upload'),
     path('students/register/', stage1_views.RegisterSingleStudentAPIView.as_view(), name='student-register'),
     path("admin-view/groups/", stage1_views.AdminGroupOverviewAPIView.as_view(), name="admin-group-overview"),
