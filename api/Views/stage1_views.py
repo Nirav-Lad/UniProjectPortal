@@ -273,7 +273,7 @@ class BatchCreateView(ListCreateAPIView):
         if(self.request.user.usertype=="Admin"):
             return Batch.objects.filter(created_by=self.request.user)
         elif (self.request.user.usertype=="Guide"):
-            return Batch.objects.all(created_by=self.request.user.created_by)
+            return Batch.objects.filter(created_by=self.request.user.created_by)
         else:
             return Batch.objects.none()
 
