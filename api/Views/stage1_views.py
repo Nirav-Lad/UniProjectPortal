@@ -1,20 +1,19 @@
 from rest_framework.views import APIView
-from rest_framework.generics import (ListCreateAPIView,UpdateAPIView,ListAPIView,RetrieveAPIView,
-                                     CreateAPIView)
+from rest_framework.generics import (ListCreateAPIView,RetrieveUpdateDestroyAPIView,UpdateAPIView,
+                                     ListAPIView,RetrieveAPIView,CreateAPIView)
 from rest_framework.response import Response
 from rest_framework import status
 from ..serializers import (
     UserLoginSerializer,BatchSerializer,SetPasswordSerializer,StudentDetailsSerializer,
     StudentInBatchSerializer,StudentDetailsRoleBasedSerializer,GroupSerializer,
-    IdeaSubmissionSerializer,GuideSetupSerializer,RegisterUserSerializer,GuidePrioritySerializer,
-    )
-from ..utils.permissions import IsAdminUser,IsGuideUser
+    IdeaSubmissionSerializer,RegisterUserSerializer,)
+from ..utils.permissions import IsAdminUser,IsStudentUser,IsAdminOrGuideUser
 from rest_framework.permissions import IsAuthenticated
 from api.utils.email_utils import send_registration_email
 # New imports
 import pandas as pd, random
 from ..models import (UserMaster,Batch,StudentBatch,StudentDetails,GroupFormation,GroupStudents,
-                     Idea,TokenTracking,Guide,GuideProjectInterest)
+                     Idea,TokenTracking)
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -24,7 +23,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.utils.timezone import now
 from datetime import datetime
 from django.utils.timezone import make_aware
-
+from django.shortcuts import get_object_or_404
+from rest_framework.viewsets import ModelViewSet
 
 # Common APIs accross whole app
 # -----------------------------------------------------------------------------------------
@@ -88,6 +88,45 @@ class LoginAPIView(APIView):
                 refresh_expires_at=refresh_expires_at
             )
 
+            # Build role-based response
+            if usertype == "Admin":
+                user_details = {
+                    "usertype": "Admin",
+                    "name": user.email.split("@")[0],
+                }
+
+            elif usertype == "Student":
+                # Compute group status
+                group_status = None
+                group_id=None
+                student = user.student_details
+
+                if student:
+                    batches = student.student_batches.all()
+                    group_student = GroupStudents.objects.filter(student_batch_link__in=batches).first()
+                    if group_student:
+                        group_status = group_student.group.status
+                        if group_status=="Active":
+                            group_id=group_student.group.id
+
+                user_details = {
+                    "usertype": "Student",
+                    "enrollment_id": enrollment_id,
+                    "name": name,
+                    "group_status": group_status or "Not Registered"
+                }
+
+                # Add group_id ONLY when group_status = Registered
+                if group_id:
+                    user_details["group_id"] = group_id
+
+            elif usertype == "Guide":
+                guide = getattr(user, "guide_profile", None)
+                user_details = {
+                    "usertype": "Guide",
+                    "name": guide.name if guide else None
+                }
+
             return Response({
                 "message": "Login successful" if not require_password_change else "OTP verified. Please set your password.",
                 "require_password_change": require_password_change,
@@ -95,12 +134,9 @@ class LoginAPIView(APIView):
                     "refresh": refresh_token,
                     "access": access_token,
                 },
-                "user_details": {
-                    "usertype": usertype,
-                    "enrollment_id": enrollment_id,
-                    "name": name
-                }
+                "user_details": user_details
             }, status=status.HTTP_200_OK)
+
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -179,7 +215,7 @@ class CustomTokenRefreshView(TokenRefreshView):
 
         except TokenTracking.DoesNotExist:
             return Response({"error": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
-
+# -----------------------------------------------------------------------------------------
 class RegisterUserAPIView(APIView):
     permission_classes=[IsAdminUser]
 
@@ -237,7 +273,9 @@ class BatchCreateView(ListCreateAPIView):
         if(self.request.user.usertype=="Admin"):
             return Batch.objects.filter(created_by=self.request.user)
         elif (self.request.user.usertype=="Guide"):
-            return Batch.objects.all()
+            return Batch.objects.filter(created_by=self.request.user.created_by)
+        else:
+            return Batch.objects.none()
 
     def perform_create(self, serializer):
         if self.request.user.usertype != 'Admin':
@@ -256,11 +294,42 @@ class BatchCreateView(ListCreateAPIView):
             {"message": "Batch created successfully"},
             status=status.HTTP_201_CREATED
         )
+# -----------------------------------------------------------------------------------------
+# Batch details API View
+class BatchDetailAPI(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = BatchSerializer
+    lookup_field = "batch_name"
+    lookup_url_kwarg = "batch_name"
+    print("Serializer is imported and permissions are verified")
 
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.usertype == "Admin":
+            return Batch.objects.filter(created_by=user)
+        elif user.usertype == "Guide":
+            return Batch.objects.filter(created_by=user.created_by)
+        return Batch.objects.none()
+
+    def get_object(self):
+        queryset = self.get_queryset()
+        batch_name = self.kwargs.get("batch_name")
+        return get_object_or_404(queryset, batch_name=batch_name)
+
+    def update(self, request, *args, **kwargs):
+        kwargs['partial']=True
+        response = super().update(request, *args, **kwargs)
+        print(response.data)
+        return Response({"message": "Batch name updated", "batch_name": response.data.get("batch_name")})
+
+    def destroy(self, request, *args, **kwargs):
+        super().destroy(request, *args, **kwargs)
+        return Response({"message": "Batch deleted"})
 # -----------------------------------------------------------------------------------------
 # Student upload api via excel sheet and pandas to break it
 class StudentUploadView(APIView):
-    permission_classes = [IsAuthenticated]  # Ensure only logged-in users (Admins) can access
+    permission_classes = [IsAdminUser]  # Ensure only logged-in users (Admins) can access
 
     def post(self, request):
         file = request.FILES.get('file')
@@ -363,7 +432,7 @@ class StudentUploadView(APIView):
 # Checks for admin user type=can only perform the restricted operations
 # like user creation and etc. 
 class RegisterSingleStudentAPIView(APIView):
-    permission_classes = [IsAuthenticated]  #  Ensure only logged-in users (Admins) can access
+    permission_classes = [IsAdminUser]  #  Ensure only logged-in users (Admins) can access
 
     def post(self, request):
         email = request.data.get('email')
@@ -447,7 +516,7 @@ class RegisterSingleStudentAPIView(APIView):
 # ---------------------------------------------------------------------------------------
 class GetStudentsInBatchAPIView(ListAPIView):
     serializer_class = StudentInBatchSerializer
-    permission_classes = [IsAuthenticated]  
+    permission_classes = [IsAdminOrGuideUser]  
 
     def get_queryset(self):
         batch_name = self.kwargs.get("batch_name") 
@@ -460,7 +529,7 @@ class GetStudentsInBatchAPIView(ListAPIView):
 # ---------------------------------------------------------------------------------------
 class GetSingleStudentAPIView(RetrieveAPIView):
     serializer_class = StudentDetailsRoleBasedSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def get_object(self):
         """
@@ -481,7 +550,7 @@ class GetSingleStudentAPIView(RetrieveAPIView):
 class GetStudentProfileAPIView(RetrieveAPIView):
 #    View to see profile of their by students
     serializer_class = StudentDetailsRoleBasedSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def get_object(self):
         """
@@ -499,7 +568,7 @@ class GetStudentProfileAPIView(RetrieveAPIView):
 # ------------------------------------------------------------------------------------------
 # # ----------------------------------------------------------------------------------------
 class FreezeGroupFormationAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def post(self, request):
         if request.user.usertype != "Admin":
@@ -513,7 +582,7 @@ class FreezeGroupFormationAPIView(APIView):
 # This code is first tested then only 
 # Get enrollment id's
 class BatchEnrollmentIDsAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def get(self, request):
         user = request.user
@@ -561,7 +630,7 @@ class BatchEnrollmentIDsAPIView(APIView):
 # -------------------------------------------------------------------------------------
 # Register group
 class RegisterGroupAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def post(self, request):
         user = request.user
@@ -604,7 +673,7 @@ class RegisterGroupAPIView(APIView):
 
 # ----------------------------------------------------------------------------------------
 class IdeaSubmissionAPIView(CreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
     serializer_class = IdeaSubmissionSerializer
 
     def create(self, request, *args, **kwargs):
@@ -655,7 +724,7 @@ class IdeaSubmissionAPIView(CreateAPIView):
 
 # ------------------------------------------------------------------------------------------------------
 class CheckIdeaSubmissionAPIView(RetrieveAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -689,7 +758,7 @@ class CheckIdeaSubmissionAPIView(RetrieveAPIView):
         return Response({"ideas": ideas_data}, status=status.HTTP_200_OK)
 # ----------------------------------------------------------------------------------------
 class UpdateIdeaAPIView(UpdateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStudentUser]
     serializer_class=IdeaSubmissionSerializer
     queryset = Idea.objects.all()
 
@@ -741,7 +810,7 @@ class IdeaResetAPIView(APIView):
     
     permission_classes = [IsAuthenticated]
     def delete(self, request, *args, **kwargs):
-        user = request.user
+        user = request.user # yet to decide for the user of this api
         idea_index = request.data.get("idea_id")  # User provides 1, 2, or 3
         print(request.data)
         print(idea_index)

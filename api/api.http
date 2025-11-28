@@ -38,7 +38,7 @@ Authorization: Bearer
 
 ### Admin -  New Batch creation 
 POST http://127.0.0.1:8000/batches/ HTTP/1/1
-Authorization: Bearer
+Authorization: 
 Content-Type: application/json
 
 {
