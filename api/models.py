@@ -80,7 +80,7 @@ class GroupStudents(models.Model):
         'StudentBatch',
         on_delete=models.CASCADE,
         related_name='group_students',
-    )
+    ) 
 
     class Meta:
         db_table = 'group_students'
@@ -354,3 +354,66 @@ class GuideGroup(models.Model):
 
 
 
+# ----------------------------------------------------------------------------------------
+
+# Models for stage 3 - Logbook & meeting Management
+
+# ----------------------------------------------------------------------------------------
+
+class LogMaster(models.Model):
+     # Table: meeting_logs
+    log_id = models.AutoField(primary_key=True)  
+    # Primary key, auto-increment
+
+    group_id = models.ForeignKey(
+        GroupFormation,              # Foreign Key connection with group_formation
+        on_delete=models.CASCADE,    # Delete logs if the group is deleted
+        related_name="meeting_logs"
+    )
+
+    changes_suggested_prev = models.TextField(
+        max_length=2000,
+        blank=True, null=True,
+        help_text="Text area to store changes suggested in the previous meeting"
+    )
+
+    changes_done_prev = models.TextField(
+        max_length=2000,
+        blank=False, null=False,
+        help_text="Text area to store changes completed from the previous meeting"
+    )
+
+    suggested_changes_next = models.TextField(
+        max_length=2000,
+        blank=False, null=False,
+        help_text="Text area to store suggested changes for the next meeting"
+    )
+
+    guide_remarks = models.TextField(
+        max_length=2000,
+        blank=False, null=False,
+        help_text="Text area for guide’s remarks about the meeting or project progress"
+    )
+
+    approval_status = models.BooleanField(
+        default=False,
+        help_text="Boolean field to mark approval status (True = Approved, False = Pending)"
+    )
+
+    created_by = models.ForeignKey(
+        'UserMaster',                  # Foreign Key connection with user_master
+        on_delete=models.CASCADE,    # Delete logs if user is deleted
+        related_name="created_meeting_logs"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when the log entry was created"
+    )
+    
+    class Meta:
+        db_table = 'log_master'
+        ordering = ["group_id", "log_id"] 
+
+    def __str__(self):
+        return f"Log {self.log_id} - Group {self.group.group_id}"
