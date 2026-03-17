@@ -417,3 +417,139 @@ class LogMaster(models.Model):
 
     def __str__(self):
         return f"Log {self.log_id} - Group {self.group.group_id}"
+
+# ----------------------------------------------------------------------------------------
+
+# Models for stage 5 - Document submissions, reviews and approvals
+
+# ----------------------------------------------------------------------------------------
+
+class SubmissionWindow(models.Model):
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100)  
+    description = models.TextField(blank=True)
+    batch = models.ForeignKey(
+        'Batch',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="submissions"
+    )
+    submission_start = models.DateTimeField()
+    submission_end = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    created_on = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'submission_window'
+
+    def __str__(self):
+        return f"{self.name} is created on {self.created_on}"
+    
+class DocumentStatus(models.TextChoices):
+    SUBMITTED="submitted","document submitted"
+    GUIDE_REVISION="guide_revision","guide asked revision document"
+    GUIDE_APPROVED="guide_approved","guide approved document"
+    ADMIN_REVISION="admin_revision","admin asked revision document"
+    ADMIN_APPROVED="admin_approved","admin approved document"
+
+class ProjectDocument(models.Model):
+    id = models.AutoField(primary_key=True)
+    submission = models.ForeignKey(
+        SubmissionWindow,
+        on_delete=models.CASCADE,
+        related_name="documents"
+    )
+    group = models.ForeignKey(
+        'GroupFormation',
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    version = models.IntegerField()
+    file = models.FileField(upload_to="project_documents/")
+    status = models.CharField(
+        max_length=20,
+        choices=DocumentStatus.choices,
+        default=DocumentStatus.SUBMITTED
+    )
+    is_latest = models.BooleanField(default=True)
+    uploaded_by = models.ForeignKey(
+        'UserMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_documents'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'project_document'
+    
+class DocumentComment(models.Model):
+
+    ROLE_CHOICES = [
+        ("GUIDE", "Guide"),
+        ("ADMIN", "Admin"),
+    ]
+
+    id = models.AutoField(primary_key=True)
+    document = models.ForeignKey(
+        ProjectDocument,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    commented_by = models.ForeignKey(
+        'UserMaster',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='comments'
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    comment = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'document_comment'
+
+class SubmissionStatus(models.Model):
+
+    submission = models.ForeignKey(
+        SubmissionWindow,
+        on_delete=models.CASCADE,
+        related_name="statuses"
+    )
+    group = models.ForeignKey(
+        'GroupFormation',
+        on_delete=models.CASCADE
+    )
+    approved_document = models.ForeignKey(
+        ProjectDocument,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    HARD_COPY_STATUS = [
+        ("NOT_REQUIRED", "Not Required"),
+        ("REQUESTED", "Requested"),
+        ("SUBMITTED", "Submitted"),
+        ("VERIFIED", "Verified"),
+    ]
+    hardcopy_status = models.CharField(
+        max_length=20,
+        choices=HARD_COPY_STATUS,
+        default="NOT_REQUIRED"
+    )
+    hardcopy_requested_at = models.DateTimeField(null=True, blank=True)
+    hardcopy_submitted_at = models.DateTimeField(null=True, blank=True)
+    hardcopy_verified_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        'UserMaster',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    submitted_on = models.DateTimeField(null=True, blank=True)
+    updated_on = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'submission_status'
+
+
