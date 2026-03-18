@@ -437,6 +437,12 @@ class SubmissionWindow(models.Model):
     submission_start = models.DateTimeField()
     submission_end = models.DateTimeField()
     is_active = models.BooleanField(default=True)
+    created_by=models.ForeignKey(
+        UserMaster,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_submissions'
+    )
     created_on = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -464,7 +470,7 @@ class ProjectDocument(models.Model):
         on_delete=models.CASCADE,
         related_name='documents'
     )
-    version = models.IntegerField()
+    version = models.PositiveIntegerField()
     file = models.FileField(upload_to="project_documents/")
     status = models.CharField(
         max_length=20,
@@ -482,6 +488,16 @@ class ProjectDocument(models.Model):
 
     class Meta:
         db_table = 'project_document'
+        constraints=[
+            models.UniqueConstraint(
+                fields=['group','submission'],
+                condition=models.Q(is_latest=True),
+                name='unique_latest_document_per_group_submission'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.group} - v{self.version} ({self.status})"
     
 class DocumentComment(models.Model):
 
@@ -551,5 +567,9 @@ class SubmissionStatus(models.Model):
 
     class Meta:
         db_table = 'submission_status'
+        unique_together=['submission','group']
+
+    def __str__(self):
+        return f"{self.group} - {self.submission} ({self.hardcopy_status})"
 
 
