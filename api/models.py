@@ -444,6 +444,7 @@ class SubmissionWindow(models.Model):
         related_name='created_submissions'
     )
     created_on = models.DateTimeField(auto_now_add=True)
+    updated_on = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'submission_window'
