@@ -4,10 +4,10 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from ..models import LogMaster, GroupFormation, UserMaster,TokenTracking,GuideGroup,StudentBatch,GroupStudents,StudentDetails
+from ..models import LogMaster, GroupFormation, UserMaster,TokenTracking,GuideGroup,StudentBatch,GroupStudents,StudentDetails,Guide
 from ..serializers import MeetingLogCreateSerializer,MeetingLogUpdateSerializer
 from rest_framework.permissions import IsAuthenticated
-from ..utils.permissions import IsAdminUser, IsStudentUser, IsGuideUser
+from ..utils.permissions import IsAdminUser, IsStudentUser, IsGuideUser, IsGuideOrStudentUser
 
 
 class MeetingLogCreateView(APIView):
@@ -89,7 +89,7 @@ class MeetingLogCreateView(APIView):
                 suggested_changes_next=serializer.validated_data.get(
                     "suggested_changes_next"
                 ),
-                guide_remarks=serializer.validated_data.get("guide_remarks"),
+                guide_remarks='-',  # default
                 approval_status=False,  # default
                 created_by=user,
             )
@@ -110,50 +110,62 @@ class MeetingLogListView(APIView):
     permission_classes = [IsAuthenticated]
     
     """
-    API endpoint to list all meeting logs.
+    API endpoint to list all meeting logs for both the students and the Guides based on the basis of the userType.
     """
 
     def get(self, request, *args, **kwargs):
-        user_role = request.query_params.get("user_role")
-        user_id = request.query_params.get("id")
-        # guide_id = request.query_params.get("guide_id")
-        print("#################\n",user_role,user_id,"\n#################")
         
-        # Validate query parameters
-        if user_role is None or user_id is None:
-            return Response(
-                {"error": "Both user_role and user_id query parameters are required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        permission_classes = [IsGuideOrStudentUser]
         
-         # Convert user_id to int safely
-        try:
-            user_id = int(user_id)
-        except ValueError:
-            return Response(
-                {"error": "user_id must be an integer."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # user_role = request.query_params.get("user_role")
+        # user_id = request.query_params.get("id")
+        # # guide_id = request.query_params.get("guide_id")
+        # print("#################\n",user_role,user_id,"\n#################")
+        
+        # # Validate query parameters
+        # if user_role is None or user_id is None:
+        #     return Response(
+        #         {"error": "Both user_role and user_id query parameters are required."},
+        #         status=status.HTTP_400_BAD_REQUEST
+        #     )
+        
+        
 
         # --- CASE 1: GUIDE ---
+        user = request.user
+        # print("#################\n",user.id,"\n#################")
+        user_role = user.usertype
         if user_role.lower() == "guide":
-            guide_id = user_id
-            group_ids = GuideGroup.objects.filter(guide_id=guide_id).values_list('group_id', flat=True)
-            print("#################\n",group_ids,"\n#################")
-            meeting_logs = LogMaster.objects.filter(group_id_id__in=group_ids)
+            guide = Guide.objects.filter(user_id=user.id).first()
+            # print("#################\n",guide,"\n#################")
+            
+            # guide_id = Guide.objects.get(user=user.id).id
+            # print("#################\n",guide.id,"\n#################")
+            group_ids = GuideGroup.objects.filter(guide_id=guide.id).values_list('group_id', flat=True)
+            # print("#################\n",group_ids,"\n#################")
+            meeting_logs = LogMaster.objects.filter(group_id_id__in=group_ids).order_by('group_id_id')
         
         
         # --- CASE 2: STUDENT ---    
         elif user_role.lower() == "student":
+             # Convert user_id to int safely
+            try:
+                user_id = int(user.enrollment_id)
+            except ValueError:
+                return Response(
+                    {"error": "user_id must be an integer."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             enrollment_id = user_id
             studentBatch_link = StudentBatch.objects.filter(enrollment_id=enrollment_id).first()
-            print("#################\n",studentBatch_link,"\n#################")
+            # print("#################\n",studentBatch_link,"\n#################")
             student_batch_link_id = studentBatch_link.id
-            print("#################\n",student_batch_link_id,"\n#################")
+            # print("#################\n",student_batch_link_id,"\n#################")
             group_student_link = GroupStudents.objects.get(student_batch_link_id=student_batch_link_id)
-            print("#################\n",group_student_link,"\n#################")
+            # print("#################\n",group_student_link,"\n#################")
             group_id = group_student_link.group_id
-            print("#################\n",group_id,"\n#################")
+            # print("#################\n",group_id,"\n#################")
             # group_ids = GroupFormation.objects.filter(
             #     id=group_id
             # ).values_list("group_id", flat=True)
@@ -165,9 +177,7 @@ class MeetingLogListView(APIView):
                 {"error": "Invalid user_role. Must be 'Guide' or 'Student'."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-         
         
-        # meeting_logs = LogMaster.objects.all()
         serialized_logs = [
             {
                 "log_id": log.log_id,
@@ -180,9 +190,36 @@ class MeetingLogListView(APIView):
                 "created_at": log.created_at,
                 "created_by_id": log.created_by.id,
                 "created_by_name": StudentDetails.objects.get(user_id=log.created_by.id).name,
-            }
-            for log in meeting_logs
+            }for log in meeting_logs
         ]
+        
+            # meeting_logs = LogMaster.objects.order_by('group_id_id').get()
+            # grouped_logs = {}
+            # print("#################\n",meeting_logs.group_id_id,"\n#################")
+        # for log in meeting_logs:
+        #     group_id = log.group_id_id
+
+        #     if group_id not in grouped_logs:
+        #         grouped_logs[group_id] = []
+
+        #     student = StudentDetails.objects.filter(user_id=log.created_by.id).first()
+
+        #     grouped_logs[group_id].append({
+        #         "log_id": log.log_id,
+        #         "title": "Sprint Planning",  # replace if dynamic
+        #         "date": log.created_at.strftime("%a, %b %d, %Y"),
+        #         "time": log.created_at.strftime("%H:%M"),
+        #         "changes_suggested_prev": log.changes_suggested_prev,
+        #         "changes_done_prev": log.changes_done_prev,
+        #         "suggested_changes_next": log.suggested_changes_next,
+        #         "creator": student.name if student else None,
+        #         "approval_status": log.approval_status,
+        #         "guide_remarks": log.guide_remarks,
+        #     })
+        
+        # for log in grouped_logs:
+        #     print("#################\n",log,"\n#################")
+            
         return Response(serialized_logs, status=status.HTTP_200_OK)
     
 class MeetingLogApproveView(APIView):
@@ -192,56 +229,17 @@ class MeetingLogApproveView(APIView):
 
     def put(self, request, *args, **kwargs):
         
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return Response(
-                {"error": "Authorization header missing or invalid"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        
-        token = auth_header.split(" ")[1]
-        
-        try:
-            # Step 2: Decode token
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-            user_id = payload.get("user_id")
-
-            if not user_id:
-                return Response(
-                    {"error": "Invalid token, user_id missing"},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-
-            # Step 3: Check if token exists in DB for the user
-            try:
-                # user = UserMaster.objects.get(user_id=user_id, access_token=token)
-                token_record = TokenTracking.objects.get(access_token=token)
-                print("1111#################\n",token_record,"\n#################11111")
-                user = token_record.user
-                print("#################\n",user,"\n#################")
-            except UserMaster.DoesNotExist:
-                return Response(
-                    {"error": "Invalid or expired token"},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-
-        except jwt.ExpiredSignatureError:
-            return Response(
-                {"error": "Token has expired"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-        except jwt.InvalidTokenError:
-            return Response(
-                {"error": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED
-            )
+        permission_classes = [IsGuideUser]
         # Step 4: Validate request body & approve log
-        
+        print("#################\n",request.data,"\n#################")
         serializer = MeetingLogUpdateSerializer(data=request.data)
+        
         if serializer.is_valid():
             log_id = serializer.validated_data["log_id"]
             
             try:
                 meeting_log = LogMaster.objects.get(log_id=log_id)
-                meeting_log.approval_status = True
+                meeting_log.approval_status = serializer.validated_data.get("approve_status")
                 meeting_log.guide_remarks = serializer.validated_data.get("guide_remarks")
                 meeting_log.changes_suggested_prev = serializer.validated_data.get("changes_suggested_prev")
                 meeting_log.changes_done_prev = serializer.validated_data.get("changes_done_prev")
@@ -259,6 +257,7 @@ class MeetingLogApproveView(APIView):
                 )
             
         else:
+            print("#################\n",serializer.errors,"\n#################")
             return Response(
                 {"error": "Log data invalid", "details": serializer.errors},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -270,12 +269,22 @@ class GroupListView(APIView):
     """
 
     def get(self, request, *args, **kwargs):
-        guide_id = request.query_params.get("guide_id")
-        if not guide_id:
+        guide_name = request.query_params.get("guide_name")
+        
+        if not guide_name:
             return Response(
-                {"error": "guide_id query parameter is required"},
+                {"error": "guide_name query parameter is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        
+        try:
+            guide_id = Guide.objects.get(name=guide_name).id
+        except Guide.DoesNotExist:
+            return Response(
+                {"error": "Guide not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
 
         group_ids = GuideGroup.objects.filter(guide_id=guide_id)
         print("#################\n",group_ids,"\n#################")
@@ -295,5 +304,28 @@ class GroupListView(APIView):
         return Response(groups_list, status=status.HTTP_200_OK)
 
         
+class GetGroupIdByUserId(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        user_id = user.enrollment_id
         
+        if not user_id:
+            return Response(
+                {"error": "user_id query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         
+        try:
+            user = UserMaster.objects.get(enrollment_id=user_id)
+        except UserMaster.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        group_id = GroupStudents.objects.filter(student_batch_link_id=StudentBatch.objects.filter(enrollment_id=user_id).first().id).values_list("group_id", flat=True)
+        print("#################\n",group_id,"\n#################")
+        meetings_count = LogMaster.objects.filter(group_id_id__in=group_id).count()
+        return Response({"group_id": list(group_id), "meetings_count": meetings_count}, status=status.HTTP_200_OK)

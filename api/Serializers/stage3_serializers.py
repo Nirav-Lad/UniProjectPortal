@@ -26,7 +26,7 @@ class MeetingLogCreateSerializer(serializers.ModelSerializer):
     
 class MeetingLogUpdateSerializer(serializers.ModelSerializer):
     log_id = serializers.IntegerField(write_only=True)
-    guide_id = serializers.IntegerField(write_only=True)
+    # guide_id = serializers.IntegerField(write_only=True)
     approve_status = serializers.BooleanField(write_only=True)
 
     class Meta:
@@ -34,7 +34,7 @@ class MeetingLogUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "log_id",
             "approve_status",
-            "guide_id",
+            # "guide_id",
             "changes_suggested_prev",
             "changes_done_prev",
             "suggested_changes_next",

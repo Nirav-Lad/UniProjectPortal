@@ -62,3 +62,15 @@ class IsAdminOrStudentUser(BasePermission):
             and request.user.is_authenticated
             and getattr(request.user, 'usertype', None) in ['Admin','Student']
         )
+
+class IsGuideOrStudentUser(BasePermission):
+    """
+    Allows access only to users with usertype = 'Student' or 'Guide'.
+    """
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and getattr(request.user, 'usertype', None) in ['Guide','Student']
+        )

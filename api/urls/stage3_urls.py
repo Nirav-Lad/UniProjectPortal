@@ -6,4 +6,5 @@ urlpatterns = [
     path('get_logs/',stage3_views.MeetingLogListView.as_view(),name='get_meeting_logs'),
     path('approve_log/',stage3_views.MeetingLogApproveView.as_view(),name='approve_meeting_log'),
     path('groups_list/',stage3_views.GroupListView.as_view(),name='get_groups_list_under_a_guide'),
+    path('get_group_id_by_user_id/',stage3_views.GetGroupIdByUserId.as_view(),name='get_group_id_by_user_id'),
 ]
